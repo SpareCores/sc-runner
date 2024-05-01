@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sparecores-runner"
+version = "0.0.1"
+requires-python = ">= 3.9"
+dependencies = [
+    "click",
+    "pulumi",
+    "pulumi-aws",
+    "sparecores-crawler",
+    "sparecores-data",
+    "sqlmodel",
+]
+authors = [
+    { name="Attila Nagy" },
+    { name="Gergely Daroczi" },
+    { name="Balazs Hodobay" },
+]
+maintainers = [
+    { name="Spare Cores team", email="pkg@sparecores.com" }
+]
+description = "Start cloud instances."
+readme = "README.md"
+keywords = ["cloud", "compute"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: Mozilla Public License 2.0 (MPL 2.0)",
+    "Operating System :: OS Independent",
+    "Development Status :: 3 - Alpha",
+]
+
+[project.urls]
+repository = "https://github.com/SpareCores/sc-runner"
+issues = "https://github.com/SpareCores/sc-runner/issues"
+documentation = "https://sparecores.github.io/sc-runner/"
+homepage = "https://sparecores.com"
+
+[project.scripts]
+sc-runner = "sc_runner.cli:cli"
+
+[tool.setuptools.packages.find]
+where = ["src"]
