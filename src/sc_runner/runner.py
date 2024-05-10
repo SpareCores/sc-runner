@@ -15,7 +15,7 @@ def get_stack_name(vendor: str, func: Callable, resource_opts: dict) -> str:
     for name, annotation in hints.items():
         for meta in getattr(annotation, "__metadata__", []):
             if isinstance(meta, resources.StackName):
-                stack_name.append(str(resource_opts[name]))
+                stack_name.append(str(resource_opts.get(name)))
     return ".".join(stack_name)
 
 
