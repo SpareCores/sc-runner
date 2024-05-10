@@ -16,5 +16,5 @@ def defaults(defaults, opt_name):
 def default(defaults, opt_name):
     """Return default value from `defaults` for the `opt_name` as a Python object(dict)."""
     envvar, def_val = defaults[opt_name]
-    return json.loads(os.environ.get(envvar, "null")) or defaults[opt_name]
+    return json.loads(os.environ.get(envvar, "null")) or def_val
 
