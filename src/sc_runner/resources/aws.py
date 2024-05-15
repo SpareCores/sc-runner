@@ -37,7 +37,9 @@ def resources_aws(
         zone: Annotated[str, DefaultOpt(["--zone"], type=click.Choice(data.zones("aws")), help="Availability zone"), StackName()] = os.environ.get("AWS_ZONE", None),
         assume_role_arn: Annotated[str, DefaultOpt(["--assume-role-arn"], type=str, help="Role to be assumed")] = os.environ.get("AWS_ASSUME_ROLE_ARN", ""),
         ami_owner: Annotated[str, DefaultOpt(["--ami-owner"], type=str, help="AMI owner")] = os.environ.get("AWS_AMI_OWNER", "099720109477"),
-        ami_name: Annotated[str, DefaultOpt(["--ami-name"], type=str, help="AWS name filter")] = os.environ.get("AWS_AMI_NAME", "ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-20240301"),
+        # to get the available image names:
+        # aws ec2 describe-images --region us-east-1 --owners 099720109477 | jq '.Images[].Name'
+        ami_name: Annotated[str, DefaultOpt(["--ami-name"], type=str, help="AWS name filter")] = os.environ.get("AWS_AMI_NAME", "ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-*-server-20240423"),
         instance: Annotated[str, DefaultOpt(["--instance"], type=click.Choice(data.servers("aws")), help="Instance type"), StackName()] = os.environ.get("AWS_TYPE", "t3.micro"),
         public_key: Annotated[str, DefaultOpt(["--public-key"], type=str, help="SSH public key")] = os.environ.get("SSH_PUBLIC_KEY", ""),
         tags: Annotated[str, DefaultOpt(["--tags"], type=JSON, default=defaults(DEFAULTS, "tags"), help="Tags for created resources")] = default(DEFAULTS, "tags"),
@@ -71,6 +73,7 @@ def resources_aws(
         ami = aws.ec2.get_ami(
             most_recent=True,  # in case of a filter is given as the name
             filters=[
+                aws.ec2.GetAmiFilterArgs(name="architecture", values=[data.server_cpu_architecture("aws", instance)]),
                 aws.ec2.GetAmiFilterArgs(name="name", values=[ami_name]),
                 aws.ec2.GetAmiFilterArgs(name="virtualization-type", values=["hvm"]),
             ],

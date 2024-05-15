@@ -37,3 +37,7 @@ def servers_vendors(vendor: str, region: str | None = None, zone: str | None = N
     if zone:
         stmt = stmt.where(ServerPrice.zone_id == zone)
     return session.exec(stmt.distinct()).all()
+
+
+def server_cpu_architecture(vendor: str, server: str) -> str:
+    return session.exec(select(Server.cpu_architecture).where(Server.vendor_id == vendor).where(Server.api_reference == server)).one().value
