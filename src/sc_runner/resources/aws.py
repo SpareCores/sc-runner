@@ -3,6 +3,7 @@ from .. import data
 from .base import StackName, default, defaults
 from typing import Annotated
 import click
+import copy
 import os
 import pulumi
 import pulumi_aws as aws
@@ -50,6 +51,11 @@ def resources_aws(
         ingress_rules: Annotated[str, DefaultOpt(["--ingress-rules"], type=JSON, default=defaults(DEFAULTS, "ingress_rules"), help="List of Pulumi aws.ec2.SecurityGroupIngressRule options")] = default(DEFAULTS, "ingress_rules"),
         egress_rules: Annotated[str, DefaultOpt(["--egress-rules"], type=JSON, default=defaults(DEFAULTS, "egress_rules"), help="List of Pulumi aws.ec2.SecurityGroupEgressRule options")] = default(DEFAULTS, "egress_rules"),
 ):
+    # as this function might be called multiple times, and we change the values below, we must make sure we work on copies
+    instance_opts = copy.deepcopy(instance_opts)
+    vpc_opts = copy.deepcopy(vpc_opts)
+    subnet_opts = copy.deepcopy(subnet_opts)
+    sg_opts = copy.deepcopy(sg_opts)
     prov_kwargs = {}
     if assume_role_arn:
         prov_kwargs["assume_role"] = aws.ProviderAssumeRoleArgs(role_arn=assume_role_arn)
