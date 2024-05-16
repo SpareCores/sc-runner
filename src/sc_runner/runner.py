@@ -24,7 +24,7 @@ def pulumi_stack(
     project_name: Annotated[str, DefaultOpt(["--project-name"], type=str, help="Pulumi project name")] = os.environ.get("PULUMI_PROJECT_NAME", "runner"),
     work_dir: Annotated[str, DefaultOpt(["--work-dir"], type=str, help="Pulumi work dir")] = os.environ.get("PULUMI_WORK_DIR", "/data/workdir"),
     pulumi_home: Annotated[str, DefaultOpt(["--pulumi-home"], type=str, help="Pulumi home")] = os.environ.get("PULUMI_HOME", "/data/.pulumi"),
-    backend_url: Annotated[str, DefaultOpt(["--pulumi-backend"], type=str, help="Pulumi backend URL")] = os.environ.get("PULUMI_BACKEND_URL", "file:///data/backend"),
+    pulumi_backend_url: Annotated[str, DefaultOpt(["--pulumi-backend-url"], type=str, help="Pulumi backend URL")] = os.environ.get("PULUMI_BACKEND_URL", "file:///data/backend"),
     stack_name: Annotated[
         str,
         click.Option(["--stack-name"], type=str, help="Pulumi stack name, defaults to {vendor}.{region}.{zone}.{instance_id} or similar")]
@@ -40,7 +40,7 @@ def pulumi_stack(
             project_settings=ProjectSettings(
                 name=project_name,
                 runtime="python",
-                backend=ProjectBackend(backend_url)
+                backend=ProjectBackend(pulumi_backend_url)
             )))
     return stack
 
