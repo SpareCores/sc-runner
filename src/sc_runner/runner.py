@@ -65,3 +65,14 @@ def destroy(vendor, pulumi_opts, resource_opts):
 
     stack = pulumi_stack(pulumi_program, **pulumi_opts)
     stack.up(on_output=print)
+
+
+def cancel(vendor, pulumi_opts, resource_opts):
+    resource_f = getattr(resources, f"{resources.PREFIX}{vendor}")
+    pulumi_opts["stack_name"] = get_stack_name(vendor, resource_f, resource_opts)
+
+    def pulumi_program():
+        return lambda: None
+
+    stack = pulumi_stack(pulumi_program, **pulumi_opts)
+    stack.cancel()
