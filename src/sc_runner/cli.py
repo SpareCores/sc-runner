@@ -45,6 +45,12 @@ def destroy(**kwargs):
     pass
 
 
+@add_click_opts(runner.pulumi_stack)
+@cli.group()
+def cancel(**kwargs):
+    pass
+
+
 for vendor in data.vendors():
     if vendor not in resources.supported_vendors:
         # exclude not yet supported vendors
@@ -64,10 +70,17 @@ for vendor in data.vendors():
         vendor = ctx.command.name
         runner.destroy(vendor, pulumi_opts, kwargs)
 
+    @cancel.command(name=vendor)
+    @click.pass_context
+    def cancel_resources(ctx, **kwargs):
+        pulumi_opts = ctx.parent.params
+        vendor = ctx.command.name
+        runner.cancel(vendor, pulumi_opts, kwargs)
 
     # add click options from the resource method's annotated argument list
     add_click_opts(getattr(resources, f"{resources.PREFIX}{vendor}"))(create_resources)
     add_click_opts(getattr(resources, f"{resources.PREFIX}{vendor}"))(destroy_resources)
+    add_click_opts(getattr(resources, f"{resources.PREFIX}{vendor}"))(cancel_resources)
 
 
 if __name__ == "__main__":
