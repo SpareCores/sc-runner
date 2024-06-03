@@ -1,4 +1,4 @@
-from sc_crawler.tables import Server, ServerPrice, Datacenter, Vendor, Zone
+from sc_crawler.tables import Server, ServerPrice, Region, Vendor, Zone
 from sqlmodel import create_engine, Session, select
 import sc_data
 
@@ -11,29 +11,26 @@ def vendors():
 
 
 def regions(vendor: str):
-    if vendor == "aws":
-        return session.exec(select(Datacenter.datacenter_id).where(Datacenter.vendor_id == vendor)).all()
-    else:
-        return session.exec(select(Datacenter.name).where(Datacenter.vendor_id == vendor)).all()
+    return session.exec(select(Region.api_reference).where(Region.vendor_id == vendor)).all()
 
 
 def zones(vendor: str):
-    return session.exec(select(Zone.name).where(Zone.vendor_id == vendor)).all()
+    return session.exec(select(Zone.api_reference).where(Zone.vendor_id == vendor)).all()
 
 
 def servers(vendor: str, region: str | None = None, zone: str | None = None):
-    stmt = select(ServerPrice.server_id, Server.name).join(Zone).join(Server).where(ServerPrice.vendor_id == vendor)
+    stmt = select(ServerPrice.server_id, Server.api_reference).join(Zone).join(Server).where(ServerPrice.vendor_id == vendor)
     if region:
-        stmt = stmt.where(ServerPrice.datacenter_id == region)
+        stmt = stmt.where(ServerPrice.region_id == region)
     if zone:
         stmt = stmt.where(ServerPrice.zone_id == zone)
     return [i[1] for i in session.exec(stmt.distinct()).all()]
 
 
 def servers_vendors(vendor: str, region: str | None = None, zone: str | None = None):
-    stmt = select(ServerPrice.vendor_id, ServerPrice.datacenter_id, Zone.name, ServerPrice.server_id).join(Zone).where(ServerPrice.vendor_id == vendor)
+    stmt = select(ServerPrice.vendor_id, ServerPrice.region_id, Zone.api_reference, ServerPrice.server_id).join(Zone).where(ServerPrice.vendor_id == vendor)
     if region:
-        stmt = stmt.where(ServerPrice.datacenter_id == region)
+        stmt = stmt.where(ServerPrice.region_id == region)
     if zone:
         stmt = stmt.where(ServerPrice.zone_id == zone)
     return session.exec(stmt.distinct()).all()
