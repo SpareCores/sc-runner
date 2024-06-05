@@ -76,10 +76,12 @@ def resources_aws(
         instance_opts["key_name"] = pubkey.id
 
     if "ami" not in instance_opts:
+        # some instances are marked as i386, but they aren't IA-32, replace them, so we can find AMIs
+        arch = data.server_cpu_architecture("aws", instance).lower().replace("i386", "x86_64")
         ami = aws.ec2.get_ami(
             most_recent=True,  # in case of a filter is given as the name
             filters=[
-                aws.ec2.GetAmiFilterArgs(name="architecture", values=[data.server_cpu_architecture("aws", instance)]),
+                aws.ec2.GetAmiFilterArgs(name="architecture", values=[arch]),
                 aws.ec2.GetAmiFilterArgs(name="name", values=[ami_name]),
                 aws.ec2.GetAmiFilterArgs(name="virtualization-type", values=["hvm"]),
             ],
