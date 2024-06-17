@@ -40,7 +40,7 @@ def resources_aws(
         ami_owner: Annotated[str, DefaultOpt(["--ami-owner"], type=str, help="AMI owner")] = os.environ.get("AWS_AMI_OWNER", "099720109477"),
         # to get the available image names:
         # aws ec2 describe-images --region us-east-1 --owners 099720109477 | jq '.Images[].Name'
-        ami_name: Annotated[str, DefaultOpt(["--ami-name"], type=str, help="AWS name filter")] = os.environ.get("AWS_AMI_NAME", "ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-*-server-20240423"),
+        ami_name: Annotated[str, DefaultOpt(["--ami-name"], type=str, help="AWS name filter")] = os.environ.get("AWS_AMI_NAME", "ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-*-server*"),
         instance: Annotated[str, DefaultOpt(["--instance"], type=click.Choice(data.servers("aws")), help="Instance type"), StackName()] = os.environ.get("AWS_TYPE", "t3.micro"),
         public_key: Annotated[str, DefaultOpt(["--public-key"], type=str, help="SSH public key")] = os.environ.get("SSH_PUBLIC_KEY", ""),
         tags: Annotated[str, DefaultOpt(["--tags"], type=JSON, default=defaults(DEFAULTS, "tags"), help="Tags for created resources")] = default(DEFAULTS, "tags"),
