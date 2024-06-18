@@ -3,6 +3,7 @@ from .. import data
 from .base import StackName, default, defaults
 from typing import Annotated
 import click
+import copy
 import os
 import pulumi
 import pulumi_gcp as gcp
@@ -22,6 +23,10 @@ def resources_gcp(
         bootdisk_opts: Annotated[str, DefaultOpt(["--bootdisk-opts"], type=JSON, default=defaults(DEFAULTS, "bootdisk_opts"), help="Pulumi gcp.compute.InstanceBootDiskArgs options")] = default(DEFAULTS, "bootdisk_opts"),
         bootdisk_init_opts: Annotated[str, DefaultOpt(["--bootdisk-init-opts"], type=JSON, default=defaults(DEFAULTS, "bootdisk_init_opts"), help="Pulumi gcp.compute.InstanceBootDiskInitializeParamsArgs options")] = default(DEFAULTS, "bootdisk_init_opts"),
 ):
+    if "zone" in instance_opts:
+        instance_opts = copy.deepcopy(instance_opts)
+        # if zone is given in instance_opts, override the `zone` option and remove it, as we can't specify it twice
+        zone = instance_opts.pop("zone")
     provider = gcp.Provider(
         resource_name=zone,
         zone=zone,
