@@ -2,6 +2,7 @@ import inspect
 import sys
 from .aws import resources_aws
 from .base import *
+from .gcp import resources_gcp
 
 # method name prefix for initializing vendor-specific resources
 PREFIX = "resources_"
