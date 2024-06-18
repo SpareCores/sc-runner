@@ -13,6 +13,7 @@ DEFAULTS = {
     "instance_opts": ("GCP_INSTANCE_OPTS", dict(labels={"created-by": "sc-runner"})),
     "bootdisk_opts": ("GCP_BOOTDISK_OPTS", dict()),
     "bootdisk_init_opts": ("GCP_BOOTDISK_INIT_OPTS", dict(image="ubuntu-2404-lts-amd64", size=16)),
+    "scheduling_opts": ("GCP_SCHEDULING_OPTS", dict()),
 }
 
 def resources_gcp(
@@ -22,6 +23,7 @@ def resources_gcp(
         instance_opts: Annotated[str, DefaultOpt(["--instance-opts"], type=JSON, default=defaults(DEFAULTS, "instance_opts"), help="Pulumi gcp.compute.Instance options")] = default(DEFAULTS, "instance_opts"),
         bootdisk_opts: Annotated[str, DefaultOpt(["--bootdisk-opts"], type=JSON, default=defaults(DEFAULTS, "bootdisk_opts"), help="Pulumi gcp.compute.InstanceBootDiskArgs options")] = default(DEFAULTS, "bootdisk_opts"),
         bootdisk_init_opts: Annotated[str, DefaultOpt(["--bootdisk-init-opts"], type=JSON, default=defaults(DEFAULTS, "bootdisk_init_opts"), help="Pulumi gcp.compute.InstanceBootDiskInitializeParamsArgs options")] = default(DEFAULTS, "bootdisk_init_opts"),
+        scheduling_opts: Annotated[str, DefaultOpt(["--scheduling-opts"], type=JSON, default=defaults(DEFAULTS, "scheduling_opts"), help="Pulumi gcp.compute.InstanceSchedulingArgs options")] = default(DEFAULTS, "scheduling_opts"),
 ):
     if "zone" in instance_opts:
         # as zone is part of the Pulumi stack name, it must be specified in the zone option and not in instance_opts
@@ -49,6 +51,7 @@ def resources_gcp(
                 access_configs=[gcp.compute.InstanceNetworkInterfaceAccessConfigArgs()]
             )
         ],
+        scheduling=gcp.compute.InstanceSchedulingArgs(**scheduling_opts),
         **instance_opts,
         opts=pulumi.ResourceOptions(provider=provider),
     )
