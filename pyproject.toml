@@ -4,12 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sparecores-runner"
-version = "0.0.10"
+version = "0.0.11"
 requires-python = ">= 3.9"
 dependencies = [
     "click",
     "pulumi",
     "pulumi-aws",
+    "pulumi-gcp",
     "sparecores-crawler>=0.2.1",
     "sparecores-data>=0.2.1",
     "sqlmodel",
