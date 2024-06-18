@@ -24,9 +24,8 @@ def resources_gcp(
         bootdisk_init_opts: Annotated[str, DefaultOpt(["--bootdisk-init-opts"], type=JSON, default=defaults(DEFAULTS, "bootdisk_init_opts"), help="Pulumi gcp.compute.InstanceBootDiskInitializeParamsArgs options")] = default(DEFAULTS, "bootdisk_init_opts"),
 ):
     if "zone" in instance_opts:
-        instance_opts = copy.deepcopy(instance_opts)
-        # if zone is given in instance_opts, override the `zone` option and remove it, as we can't specify it twice
-        zone = instance_opts.pop("zone")
+        # as zone is part of the Pulumi stack name, it must be specified in the zone option and not in instance_opts
+        raise ValueError("zone must be specified in the zone option")
     provider = gcp.Provider(
         resource_name=zone,
         zone=zone,
