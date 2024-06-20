@@ -37,8 +37,7 @@ def resources_gcp(
             instance_opts["metadata"]["ssh-keys"] = f"ubuntu:{public_key}"
         else:
             instance_opts["metadata"] = {"ssh-keys": f"ubuntu:{public_key}"}
-    gcp.compute.Instance(
-        instance,
+    instance_opts |= dict(
         machine_type=instance,
         zone=zone,
         boot_disk=gcp.compute.InstanceBootDiskArgs(
@@ -51,7 +50,11 @@ def resources_gcp(
                 access_configs=[gcp.compute.InstanceNetworkInterfaceAccessConfigArgs()]
             )
         ],
-        scheduling=gcp.compute.InstanceSchedulingArgs(**scheduling_opts),
+    )
+    if scheduling_opts:
+        instance_opts["scheduling"] = gcp.compute.InstanceSchedulingArgs(**scheduling_opts)
+    gcp.compute.Instance(
+        instance,
         **instance_opts,
         opts=pulumi.ResourceOptions(provider=provider),
     )
