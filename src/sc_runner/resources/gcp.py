@@ -28,6 +28,8 @@ def resources_gcp(
     if "zone" in instance_opts:
         # as zone is part of the Pulumi stack name, it must be specified in the zone option and not in instance_opts
         raise ValueError("zone must be specified in the zone option")
+    # we don't want to modify the default
+    instance_opts = copy.deepcopy(instance_opts)
     provider = gcp.Provider(
         resource_name=zone,
         zone=zone,
