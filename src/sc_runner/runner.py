@@ -48,7 +48,8 @@ def pulumi_stack(
 
 def create(vendor, pulumi_opts, resource_opts):
     resource_f = getattr(resources, f"{resources.PREFIX}{vendor}")
-    pulumi_opts["stack_name"] = get_stack_name(vendor, resource_f, resource_opts)
+    if "stack_name" not in pulumi_opts:
+        pulumi_opts["stack_name"] = get_stack_name(vendor, resource_f, resource_opts)
 
     def pulumi_program():
         return resource_f(**resource_opts)
@@ -59,15 +60,16 @@ def create(vendor, pulumi_opts, resource_opts):
 
 def destroy(vendor, pulumi_opts, resource_opts):
     resource_f = getattr(resources, f"{resources.PREFIX}{vendor}")
-    pulumi_opts["stack_name"] = get_stack_name(vendor, resource_f, resource_opts)
-
+    if "stack_name" not in pulumi_opts:
+        pulumi_opts["stack_name"] = get_stack_name(vendor, resource_f, resource_opts)
     stack = pulumi_stack(lambda: None, **pulumi_opts)
     stack.up(on_output=print)
 
 
 def cancel(vendor, pulumi_opts, resource_opts):
     resource_f = getattr(resources, f"{resources.PREFIX}{vendor}")
-    pulumi_opts["stack_name"] = get_stack_name(vendor, resource_f, resource_opts)
+    if "stack_name" not in pulumi_opts:
+        pulumi_opts["stack_name"] = get_stack_name(vendor, resource_f, resource_opts)
 
     stack = pulumi_stack(lambda: None, **pulumi_opts)
     stack.cancel()
@@ -75,6 +77,7 @@ def cancel(vendor, pulumi_opts, resource_opts):
 
 def get_stack(vendor, pulumi_opts, resource_opts):
     resource_f = getattr(resources, f"{resources.PREFIX}{vendor}")
-    pulumi_opts["stack_name"] = get_stack_name(vendor, resource_f, resource_opts)
+    if "stack_name" not in pulumi_opts:
+        pulumi_opts["stack_name"] = get_stack_name(vendor, resource_f, resource_opts)
 
     return pulumi_stack(lambda: None, **pulumi_opts)
