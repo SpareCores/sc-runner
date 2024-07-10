@@ -66,6 +66,16 @@ def destroy(vendor, pulumi_opts, resource_opts):
     stack.up(on_output=print)
 
 
+def destroy_stack(vendor, pulumi_opts, resource_opts):
+    resource_f = getattr(resources, f"{resources.PREFIX}{vendor}")
+    if not pulumi_opts.get("stack_name"):
+        pulumi_opts["stack_name"] = get_stack_name(vendor, resource_f, resource_opts)
+    stack = pulumi_stack(lambda: None, **pulumi_opts)
+    stack.refresh(on_output=print)
+    stack.destroy(on_output=print)
+    stack.workspace.remove_stack(stack.name)
+
+
 def cancel(vendor, pulumi_opts, resource_opts):
     resource_f = getattr(resources, f"{resources.PREFIX}{vendor}")
     if not pulumi_opts.get("stack_name"):

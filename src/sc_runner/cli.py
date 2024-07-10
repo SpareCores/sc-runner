@@ -47,6 +47,16 @@ def destroy(**kwargs):
 
 @add_click_opts(runner.pulumi_stack)
 @cli.group()
+def destroy_stack(**kwargs):
+    """
+    Destroy the underlying Pulumi stack.
+    Useful if the cloud resources were deleted and the normal destroy command fails.
+    """
+    pass
+
+
+@add_click_opts(runner.pulumi_stack)
+@cli.group()
 def cancel(**kwargs):
     pass
 
@@ -70,6 +80,13 @@ for vendor in data.vendors():
         vendor = ctx.command.name
         runner.destroy(vendor, pulumi_opts, kwargs)
 
+    @destroy_stack.command(name=vendor)
+    @click.pass_context
+    def destroy_stack_cmd(ctx, **kwargs):
+        pulumi_opts = ctx.parent.params
+        vendor = ctx.command.name
+        runner.destroy_stack(vendor, pulumi_opts, kwargs)
+
     @cancel.command(name=vendor)
     @click.pass_context
     def cancel_resources(ctx, **kwargs):
@@ -80,6 +97,7 @@ for vendor in data.vendors():
     # add click options from the resource method's annotated argument list
     add_click_opts(getattr(resources, f"{resources.PREFIX}{vendor}"))(create_resources)
     add_click_opts(getattr(resources, f"{resources.PREFIX}{vendor}"))(destroy_resources)
+    add_click_opts(getattr(resources, f"{resources.PREFIX}{vendor}"))(destroy_stack_cmd)
     add_click_opts(getattr(resources, f"{resources.PREFIX}{vendor}"))(cancel_resources)
 
 
