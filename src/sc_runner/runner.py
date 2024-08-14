@@ -1,5 +1,7 @@
 from . import DefaultOpt
 from . import resources
+from .cloud_meta import get_instance_id
+from importlib.metadata import version, PackageNotFoundError
 from pulumi.automation import LocalWorkspaceOptions
 from pulumi.automation import ProjectBackend
 from pulumi.automation import ProjectSettings
@@ -7,6 +9,18 @@ from pulumi.automation import create_or_select_stack
 from typing import Annotated, Callable, get_type_hints
 import click
 import os
+import sentry_sdk
+
+
+def get_installed_package_version(package_name: str) -> str:
+    try:
+        return version(package_name)
+    except PackageNotFoundError:
+        return f"Package '{package_name}' is not installed."
+
+instance_id, cloud_provider = get_instance_id()
+sentry_sdk.set_context("cloud_metadata", {"instance-id": instance_id, "cloud-provider": cloud_provider})
+sentry_sdk.init(release=get_installed_package_version("sparecores-runner"))
 
 
 def get_stack_name(vendor: str, func: Callable, resource_opts: dict) -> str:
@@ -31,6 +45,13 @@ def pulumi_stack(
         click.Option(["--stack-name"], type=str, help="Pulumi stack name, defaults to {vendor}.{region}.{zone}.{instance_id} or similar")]
     = os.environ.get("PULUMI_STACK_NAME", ""),
 ):
+    sentry_sdk.set_context("pulumi", {
+        "project_name": project_name,
+        "work_dir": work_dir,
+        "pulumi_home": pulumi_home,
+        "pulumi_backend_url": pulumi_backend_url,
+        "stack_name": stack_name,
+    })
     stack = create_or_select_stack(
         stack_name=stack_name,
         project_name=project_name,
