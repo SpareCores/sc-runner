@@ -18,7 +18,7 @@ DEFAULTS = {
 
 def resources_gcp(
         zone: Annotated[str, DefaultOpt(["--zone"], type=click.Choice(data.zones("gcp")), help="Availability zone"), StackName()] = os.environ.get("GCP_ZONE", "us-east1-d"),
-        instance: Annotated[str, DefaultOpt(["--instance"], type=click.Choice(data.servers("gcp")), help="Instance type"), StackName()] = os.environ.get("GCP_TYPE", "e2-micro"),
+        instance: Annotated[str, DefaultOpt(["--instance"], type=click.Choice(data.servers("gcp")), help="Instance type"), StackName()] = os.environ.get("INSTANCE_TYPE", "e2-micro"),
         public_key: Annotated[str, DefaultOpt(["--public-key"], type=str, help="SSH public key")] = os.environ.get("SSH_PUBLIC_KEY", ""),
         instance_opts: Annotated[str, DefaultOpt(["--instance-opts"], type=JSON, default=defaults(DEFAULTS, "instance_opts"), help="Pulumi gcp.compute.Instance options")] = default(DEFAULTS, "instance_opts"),
         bootdisk_opts: Annotated[str, DefaultOpt(["--bootdisk-opts"], type=JSON, default=defaults(DEFAULTS, "bootdisk_opts"), help="Pulumi gcp.compute.InstanceBootDiskArgs options")] = default(DEFAULTS, "bootdisk_opts"),
