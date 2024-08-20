@@ -23,7 +23,7 @@ V6_ALLOW_ALL = dict(ip_protocol="-1",
 # defaults for JSON-based options
 # key is the option variable name, value is a tuple of env var name and the default value
 DEFAULTS = {
-    "tags": ("AWS_TAGS", {"Created-by": "sc-runner"}),
+    "tags": ("TAGS", {"Created-by": "sc-runner"}),
     "instance_opts": ("AWS_INSTANCE_OPTS", dict(associate_public_ip_address=True)),
     "vpc_opts": ("AWS_VPC_OPTS", dict()),
     "subnet_opts": ("AWS_SUBNET_OPTS", dict()),
