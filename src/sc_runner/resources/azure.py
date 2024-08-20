@@ -4,9 +4,7 @@ from .base import StackName, default, defaults
 from typing import Annotated
 import click
 import os
-import pulumi
 import pulumi_azure_native as azure_native
-import base64
 
 
 # defaults for JSON-based options
