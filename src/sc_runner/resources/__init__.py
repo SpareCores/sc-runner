@@ -1,6 +1,7 @@
 import inspect
 import sys
 from .aws import resources_aws
+from .azure import resources_azure
 from .base import *
 from .gcp import resources_gcp
 
