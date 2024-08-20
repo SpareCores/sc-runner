@@ -10,6 +10,7 @@ dependencies = [
     "click",
     "pulumi",
     "pulumi-aws",
+    "pulumi-azure-native",
     "pulumi-gcp",
     "requests",
     "sentry-sdk",
