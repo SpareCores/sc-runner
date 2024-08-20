@@ -23,7 +23,7 @@ def resources_azure(
         image_offer: Annotated[str, DefaultOpt(["--image-offer"], type=str, help="VM Image offer")] = os.environ.get("AZURE_IMAGE_OFFER", "ubuntu-24_04-lts"),
         image_sku: Annotated[str, DefaultOpt(["--image-sku"], type=str, help="VM Image SKU")] = os.environ.get("AZURE_IMAGE_SKU", "server"),
         image_version: Annotated[str, DefaultOpt(["--image-version"], type=str, help="VM Image version")] = os.environ.get("AZURE_IMAGE_VERSION", "latest"),
-        instance: Annotated[str, DefaultOpt(["--instance"], type=click.Choice(data.servers("azure")), help="Instance type"), StackName()] = os.environ.get("INSTANCE_TYPE", "t3.micro"),
+        instance: Annotated[str, DefaultOpt(["--instance"], type=click.Choice(data.servers("azure")), help="Instance type"), StackName()] = os.environ.get("INSTANCE_TYPE", "Standard_A1"),
         public_key: Annotated[str, DefaultOpt(["--public-key"], type=str, help="SSH public key")] = os.environ.get("SSH_PUBLIC_KEY", ""),
         tags: Annotated[str, DefaultOpt(["--tags"], type=JSON, default=defaults(DEFAULTS, "tags"), help="Tags for created resources")] = default(DEFAULTS, "tags"),
         vnet_opts: Annotated[str, DefaultOpt(["--vnet-opts"], type=JSON, default=defaults(DEFAULTS, "vnet_opts"), help="Pulumi azure-native.network.VirtualNetwork options")] = default(DEFAULTS, "vnet_opts"),
