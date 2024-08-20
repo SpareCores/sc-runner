@@ -50,6 +50,8 @@ def resources_aws(
         sg_opts: Annotated[str, DefaultOpt(["--sg-opts"], type=JSON, default=defaults(DEFAULTS, "sg_opts"), help="Pulumi aws.ec2.SecurityGroup options")] = default(DEFAULTS, "sg_opts"),
         ingress_rules: Annotated[str, DefaultOpt(["--ingress-rules"], type=JSON, default=defaults(DEFAULTS, "ingress_rules"), help="List of Pulumi aws.ec2.SecurityGroupIngressRule options")] = default(DEFAULTS, "ingress_rules"),
         egress_rules: Annotated[str, DefaultOpt(["--egress-rules"], type=JSON, default=defaults(DEFAULTS, "egress_rules"), help="List of Pulumi aws.ec2.SecurityGroupEgressRule options")] = default(DEFAULTS, "egress_rules"),
+        user_data: Annotated[str | None, DefaultOpt(["--user-data"], type=str, help="Base64 encoded string with user_data script to run at boot")] = os.environ.get("USER_DATA", None),
+        disk_size: Annotated[int, DefaultOpt(["--disk-size"], type=int, help="Boot disk size in GiBs")] = int(os.environ.get("DISK_SIZE", 30)),
 ):
     # as this function might be called multiple times, and we change the values below, we must make sure we work on copies
     instance_opts = copy.deepcopy(instance_opts)
@@ -74,6 +76,10 @@ def resources_aws(
             key_name=instance,
         )
         instance_opts["key_name"] = pubkey.id
+    if user_data:
+        instance_opts["user_data_base64"] = user_data
+    if disk_size:
+        instance_opts["root_block_device"] = aws.ec2.InstanceRootBlockDeviceArgs(volume_size=disk_size)
 
     if "ami" not in instance_opts:
         # some instances are marked as i386, but they aren't IA-32, replace them, so we can find AMIs
