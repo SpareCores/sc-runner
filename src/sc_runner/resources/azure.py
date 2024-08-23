@@ -20,6 +20,8 @@ def resources_azure(
         region: Annotated[str, DefaultOpt(["--region"], type=click.Choice(data.regions("azure")), help="Region"), StackName()] = os.environ.get("AZURE_REGION", "westeurope"),
         zone: Annotated[str, DefaultOpt(["--zone"], type=click.Choice(sorted(set(data.zones("azure")))), help="Availability zone"), StackName()] = os.environ.get("AZURE_ZONE", None),
         image_publisher: Annotated[str, DefaultOpt(["--image-publisher"], type=str, help="VM Image publisher")] = os.environ.get("AZURE_IMAGE_PUBLISHER", "Canonical"),
+        # get the list of images in the mcr.microsoft.com/azure-cli Docker image (very slow):
+        # az vm image list --publisher Canonical --all
         image_offer: Annotated[str, DefaultOpt(["--image-offer"], type=str, help="VM Image offer")] = os.environ.get("AZURE_IMAGE_OFFER", "ubuntu-24_04-lts"),
         image_sku: Annotated[str, DefaultOpt(["--image-sku"], type=str, help="VM Image SKU")] = os.environ.get("AZURE_IMAGE_SKU", "server"),
         image_version: Annotated[str, DefaultOpt(["--image-version"], type=str, help="VM Image version")] = os.environ.get("AZURE_IMAGE_VERSION", "latest"),
