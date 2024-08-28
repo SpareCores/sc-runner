@@ -9,5 +9,5 @@ RUN curl -fsSL https://get.pulumi.com | sh
 RUN --mount=id=root,type=cache,target=/root,sharing=shared \
     python -m venv --without-pip "$VIRTUAL_ENV" && \
     curl -sSLf https://bootstrap.pypa.io/get-pip.py | python - && \
-    pip install "sparecores-runner>=0.0.24"
+    pip install "sparecores-runner>=0.0.25"
 ENTRYPOINT sc-runner
