@@ -69,29 +69,34 @@ def pulumi_stack(
 
 def create(vendor, pulumi_opts, resource_opts, stack_opts=dict(on_output=print)):
     resource_f = getattr(resources, f"{resources.PREFIX}{vendor}")
-    if not pulumi_opts.get("stack_name"):
-        pulumi_opts["stack_name"] = get_stack_name(vendor, resource_f, resource_opts)
 
     def pulumi_program():
         return resource_f(**resource_opts)
 
-    stack = pulumi_stack(pulumi_program, **pulumi_opts)
+    if pulumi_opts.get("stack_name"):
+        stack = pulumi_stack(pulumi_program, **pulumi_opts)
+    else:
+        stack = pulumi_stack(pulumi_program, stack_name=get_stack_name(vendor, resource_f, resource_opts), **pulumi_opts)
     stack.up(**stack_opts)
 
 
 def destroy(vendor, pulumi_opts, resource_opts, stack_opts=dict(on_output=print)):
     resource_f = getattr(resources, f"{resources.PREFIX}{vendor}")
-    if not pulumi_opts.get("stack_name"):
-        pulumi_opts["stack_name"] = get_stack_name(vendor, resource_f, resource_opts)
-    stack = pulumi_stack(lambda: None, **pulumi_opts)
+
+    if pulumi_opts.get("stack_name"):
+        stack = pulumi_stack(lambda: None, **pulumi_opts)
+    else:
+        stack = pulumi_stack(lambda: None, stack_name=get_stack_name(vendor, resource_f, resource_opts), **pulumi_opts)
     stack.up(**stack_opts)
 
 
 def destroy_stack(vendor, pulumi_opts, resource_opts, stack_opts=dict(on_output=print)):
     resource_f = getattr(resources, f"{resources.PREFIX}{vendor}")
-    if not pulumi_opts.get("stack_name"):
-        pulumi_opts["stack_name"] = get_stack_name(vendor, resource_f, resource_opts)
-    stack = pulumi_stack(lambda: None, **pulumi_opts)
+
+    if pulumi_opts.get("stack_name"):
+        stack = pulumi_stack(lambda: None, **pulumi_opts)
+    else:
+        stack = pulumi_stack(lambda: None, stack_name=get_stack_name(vendor, resource_f, resource_opts), **pulumi_opts)
     stack.refresh(**stack_opts)
     stack.destroy(**stack_opts)
     stack.workspace.remove_stack(stack.name)
@@ -99,16 +104,18 @@ def destroy_stack(vendor, pulumi_opts, resource_opts, stack_opts=dict(on_output=
 
 def cancel(vendor, pulumi_opts, resource_opts):
     resource_f = getattr(resources, f"{resources.PREFIX}{vendor}")
-    if not pulumi_opts.get("stack_name"):
-        pulumi_opts["stack_name"] = get_stack_name(vendor, resource_f, resource_opts)
 
-    stack = pulumi_stack(lambda: None, **pulumi_opts)
+    if pulumi_opts.get("stack_name"):
+        stack = pulumi_stack(lambda: None, **pulumi_opts)
+    else:
+        stack = pulumi_stack(lambda: None, stack_name=get_stack_name(vendor, resource_f, resource_opts), **pulumi_opts)
     stack.cancel()
 
 
 def get_stack(vendor, pulumi_opts, resource_opts):
     resource_f = getattr(resources, f"{resources.PREFIX}{vendor}")
-    if not pulumi_opts.get("stack_name"):
-        pulumi_opts["stack_name"] = get_stack_name(vendor, resource_f, resource_opts)
 
-    return pulumi_stack(lambda: None, **pulumi_opts)
+    if pulumi_opts.get("stack_name"):
+        return pulumi_stack(lambda: None, **pulumi_opts)
+    else:
+        return pulumi_stack(lambda: None, stack_name=get_stack_name(vendor, resource_f, resource_opts), **pulumi_opts)
