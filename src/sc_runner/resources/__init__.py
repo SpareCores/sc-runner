@@ -1,9 +1,10 @@
-import inspect
-import sys
 from .aws import resources_aws
 from .azure import resources_azure
 from .base import *
 from .gcp import resources_gcp
+from .hcloud import resources_hcloud
+import inspect
+import sys
 
 # method name prefix for initializing vendor-specific resources
 PREFIX = "resources_"
