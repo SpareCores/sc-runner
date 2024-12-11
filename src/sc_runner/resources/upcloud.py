@@ -79,6 +79,7 @@ def resources_upcloud(
             "size": disk_size,
             "storage": "Ubuntu Server 24.04 LTS (Noble Numbat)",
         },
+        network_interfaces=[{"type": "public"}],
         user_data=user_data,
         **instance_opts,
     )
