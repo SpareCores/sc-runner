@@ -70,6 +70,7 @@ def resources_upcloud(
     # we don't want to modify the default
     instance_opts = copy.deepcopy(instance_opts)
     upcloud.Server(
+        hostname,
         hostname=hostname,
         plan=instance,
         zone=region,
