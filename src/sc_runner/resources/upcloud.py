@@ -80,6 +80,7 @@ def resources_upcloud(
             "storage": "Ubuntu Server 24.04 LTS (Noble Numbat)",
         },
         network_interfaces=[{"type": "public"}],
+        metadata=True,
         user_data=user_data,
         **instance_opts,
     )
