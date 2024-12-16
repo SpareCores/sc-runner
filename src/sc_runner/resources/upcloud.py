@@ -11,7 +11,10 @@ from .base import StackName, default, defaults
 DEFAULTS = {
     "instance_opts": (
         "UPCLOUD_INSTANCE_OPTS",
-        dict(labels={"created-by": "sc-runner"}),
+        dict(
+            labels={"created-by": "sc-runner"},
+            # tags=["sc-runner"],  # only main account can set tags
+        ),
     ),
 }
 
