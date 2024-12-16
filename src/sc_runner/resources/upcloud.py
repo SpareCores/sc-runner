@@ -1,7 +1,6 @@
 import copy
 import os
 from typing import Annotated
-from uuid import uuid4
 
 import click
 import pulumi_upcloud as upcloud
@@ -34,14 +33,6 @@ def resources_upcloud(
         ),
         StackName(),
     ] = os.environ.get("INSTANCE_TYPE", "DEV-1xCPU-4GB"),
-    hostname: Annotated[
-        str,
-        DefaultOpt(
-            ["--hostname"],
-            type=str,
-            help="Hostname for the server",
-        ),
-    ] = f"sc-runner-{uuid4().hex}",
     public_key: Annotated[
         str,
         DefaultOpt(["--public-key"], type=str, help="SSH public key for the root user"),
@@ -70,8 +61,8 @@ def resources_upcloud(
     # we don't want to modify the default
     instance_opts = copy.deepcopy(instance_opts)
     upcloud.Server(
-        hostname,
-        hostname=hostname,
+        instance,
+        hostname=instance.lower(),
         plan=instance,
         zone=region,
         login={"user": "root", "keys": [public_key], "create_password": False},
