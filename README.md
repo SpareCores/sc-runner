@@ -23,6 +23,7 @@ For more details, see the supported vendor's Pulumi integration:
 * [Azure](https://www.pulumi.com/registry/packages/azure-native/installation-configuration/)
 * [GCP](https://www.pulumi.com/registry/packages/gcp/installation-configuration/), [GOOGLE_CREDENTIALS](https://www.pulumi.com/registry/packages/gcp/service-account/)
 * [Hetzner Cloud](https://www.pulumi.com/registry/packages/hcloud/)
+* [UpCloud](https://github.com/UpCloudLtd/pulumi-upcloud)
 
 ## Pulumi
 
@@ -47,6 +48,7 @@ Commands:
   azure
   gcp
   hcloud
+  upcloud
 ```
 
 Or by setting the following environment variables:
