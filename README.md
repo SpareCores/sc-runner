@@ -24,6 +24,7 @@ For more details, see the supported vendor's Pulumi integration:
 * [GCP](https://www.pulumi.com/registry/packages/gcp/installation-configuration/), [GOOGLE_CREDENTIALS](https://www.pulumi.com/registry/packages/gcp/service-account/)
 * [Hetzner Cloud](https://www.pulumi.com/registry/packages/hcloud/)
 * [UpCloud](https://github.com/UpCloudLtd/pulumi-upcloud)
+* [OVHcloud](https://www.pulumi.com/registry/packages/ovh/)
 
 ## Pulumi
 
@@ -48,6 +49,7 @@ Commands:
   azure
   gcp
   hcloud
+  ovh
   upcloud
 ```
 
@@ -55,7 +57,8 @@ Or by setting the following environment variables:
 
 * PULUMI_PROJECT_NAME
 * PULUMI_WORK_DIR
-* PULUMI_HOMEPULUMI_BACKEND_URL
+* PULUMI_HOME
+* PULUMI_BACKEND_URL
 
 `sc-runner` should create the project on the first invocation, in which it'll create multiple stacks for each 
 `vendor.region.zone.instance_id` tuple. This is to allow concurrent creation of the instances, supporting our

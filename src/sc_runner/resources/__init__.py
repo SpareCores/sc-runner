@@ -6,6 +6,7 @@ from .azure import resources_azure
 from .base import *
 from .gcp import resources_gcp
 from .hcloud import resources_hcloud
+from .ovh import resources_ovh
 from .upcloud import resources_upcloud
 
 # method name prefix for initializing vendor-specific resources
@@ -24,6 +25,7 @@ __all__ = [
     "resources_azure",
     "resources_gcp",
     "resources_hcloud",
+    "resources_ovh",
     "resources_upcloud",
     "supported_vendors",
 ]
