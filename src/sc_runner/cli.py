@@ -3,6 +3,7 @@ from . import resources
 from . import runner
 from typing import get_type_hints
 import click
+from click._utils import UNSET
 import inspect
 
 
@@ -14,10 +15,39 @@ def add_click_opts(func):
             default = inspect.signature(func).parameters[name].default
             for meta in getattr(annotation, "__metadata__", []):
                 if isinstance(meta, (click.Option, click.Argument)):
-                    # if no default is set in the click Option, and there's one specified as
-                    # the parameter's default, set it as click option default
-                    if not getattr(meta, "default") and default is not inspect.Parameter.empty:
-                        meta.default = default
+                    # If the function parameter has a default, use it as the Click option default.
+                    # This ensures we don't need to duplicate the default in the DefaultOpt call.
+                    #
+                    # Click 8.3.0+ behavior change:
+                    # In Click 8.2.0 and earlier, when an option didn't have a default set,
+                    # the Option.default attribute was None. However, in Click 8.3.0+, the
+                    # default attribute is set to Sentinel.UNSET (from click._utils) when not
+                    # explicitly provided. This change was made to better distinguish between
+                    # "no default set" (UNSET) and "default explicitly set to None".
+                    #
+                    # The problem this caused:
+                    # When we check `if not getattr(meta, "default")`, this evaluates to False
+                    # for both None and UNSET (since UNSET is truthy). However, we need to
+                    # explicitly check for UNSET to properly detect when a default wasn't set.
+                    # Without this check, we wouldn't set the function parameter's default as
+                    # the Click option default, causing Click to pass None values through
+                    # Context.invoke() (as per Click 8.3.1 changelog: "Replace Sentinel.UNSET
+                    # default values by None as they're passed through the Context.invoke()
+                    # method"), which would override function defaults when unpacking with **kwargs.
+                    #
+                    # The fix:
+                    # We explicitly check if meta.default is None or UNSET, and if so, we set
+                    # it to the function parameter's default value. This ensures that function
+                    # defaults are properly used by Click, avoiding the need to duplicate
+                    # default values in both the DefaultOpt call and the function parameter.
+                    meta_default = getattr(meta, "default", None)
+                    if default is not inspect.Parameter.empty:
+                        # Only override if meta doesn't have a non-None default explicitly set.
+                        # UNSET means it wasn't set, so we should use the function default.
+                        # None might also mean it wasn't set (for backward compatibility with
+                        # older Click versions or explicit None defaults).
+                        if meta_default is None or meta_default is UNSET:
+                            meta.default = default
                     if meta.name != name:
                         # in case of a different argument and click option name, replace the
                         # click.Option's name, so it will be mapped correctly
