@@ -38,6 +38,9 @@ def resources_ovh(
         ),
         StackName(),
     ] = os.environ.get("INSTANCE_TYPE", "c3-4"),
+    image_name: Annotated[
+        str, DefaultOpt(["--image-name"], type=str, help="Boot image name")
+    ] = "Ubuntu 24.04",
     instance_opts: Annotated[
         str,
         DefaultOpt(
@@ -102,11 +105,12 @@ def resources_ovh(
         (
             image.id
             for image in images.images
-            if image.name == "Ubuntu 24.04" and image.region == region
-        )
+            if image.name == image_name and image.region == region
+        ),
+        None,
     )
     if not image_id:
-        raise ValueError(f"No Ubuntu 24.04 image found in the `{region}` region")
+        raise ValueError(f"No {image_name} image found in the `{region}` region")
     ovh.cloudproject.Instance(
         instance,
         name=instance,
