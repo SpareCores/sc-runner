@@ -70,12 +70,11 @@ def resources_ovh(
     - OVH account
     - OVH project
     """
+    project_id = os.environ.get("OVH_CLOUD_PROJECT_SERVICE")
     if user_data:
         instance_opts["user_data"] = base64.b64encode(user_data.encode()).decode()
     # find flavor ID based on region and instance type
-    flavors = ovh.cloudproject.get_flavors(
-        service_name=os.environ.get("OVH_CLOUD_PROJECT_SERVICE")
-    )
+    flavors = ovh.cloudproject.get_flavors(service_name=project_id)
     flavor_id = next(
         (
             flavor.id
@@ -89,9 +88,7 @@ def resources_ovh(
             f"The `{instance}` instance type is not supported in the `{region}` region"
         )
     # find an Ubuntu 24.04 image in the region
-    images = ovh.cloudproject.get_images(
-        service_name=os.environ.get("OVH_CLOUD_PROJECT_SERVICE")
-    )
+    images = ovh.cloudproject.get_images(service_name=project_id)
     image_id = next(
         (
             image.id
