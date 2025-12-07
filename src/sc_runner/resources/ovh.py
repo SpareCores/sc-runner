@@ -50,18 +50,20 @@ def resources_ovh(
 
     Required environment variables/configuration:
 
-    - OVH_CLOUD_PROJECT_SERVICE (OVHcloud project UUID)
-    - OVH_ENDPOINT (e.g. ovh-eu)
-    - OVH_CLIENT_ID
-    - OVH_CLIENT_SECRET
+    - `OVH_CLOUD_PROJECT_SERVICE` (OVHcloud project UUID)
+    - `OVH_ENDPOINT` (e.g. ovh-eu)
+    - `OVH_CLIENT_ID`
+    - `OVH_CLIENT_SECRET`
 
     Required permissions:
 
-    - publicCloudProject:apiovh:operation/get
-    - publicCloudProject:apiovh:instance/create
-    - publicCloudProject:apiovh:region/instance/create
-    - publicCloudProject:apiovh:region/instance/get
-    - publicCloudProject:apiovh:instance/delete
+    - `publicCloudProject:apiovh:operation/get`
+    - `publicCloudProject:apiovh:flavor/get`
+    - `publicCloudProject:apiovh:image/get`
+    - `publicCloudProject:apiovh:instance/create`
+    - `publicCloudProject:apiovh:region/instance/create`
+    - `publicCloudProject:apiovh:region/instance/get`
+    - `publicCloudProject:apiovh:instance/delete`
 
     Required scopes:
 
@@ -70,11 +72,42 @@ def resources_ovh(
     """
     if user_data:
         instance_opts["user_data"] = base64.b64encode(user_data.encode()).decode()
+    # find flavor ID based on region and instance type
+    flavors = ovh.cloudproject.get_flavors(
+        service_name=os.environ.get("OVH_CLOUD_PROJECT_SERVICE")
+    )
+    flavor_id = next(
+        (
+            flavor.id
+            for flavor in flavors.flavors
+            if flavor.name == instance and flavor.region == region
+        ),
+        None,
+    )
+    if not flavor_id:
+        raise ValueError(
+            f"The `{instance}` instance type is not supported in the `{region}` region"
+        )
+    # find an Ubuntu 24.04 image in the region
+    images = ovh.cloudproject.get_images(
+        service_name=os.environ.get("OVH_CLOUD_PROJECT_SERVICE")
+    )
+    image_id = next(
+        (
+            image.id
+            for image in images.images
+            if image.name == "Ubuntu 24.04" and image.region == region
+        )
+    )
+    if not image_id:
+        raise ValueError(f"No Ubuntu 24.04 image found in the `{region}` region")
     ovh.cloudproject.Instance(
         instance,
         name=instance,
-        # boot_from={"image_id": "93ea90a4-da5f-48d3-8463-83f2a2449ca3"},
-        flavor={"flavor_id": instance},
+        boot_from={"image_id": image_id},
+        flavor={"flavor_id": flavor_id},
+        network={"public": True},
+        billing_period="hourly",
         region=region,
         **instance_opts,
     )
