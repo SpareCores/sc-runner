@@ -13,6 +13,19 @@ DEFAULTS = {
 }
 
 
+def find_resource_id(items, name: str, resource_type: str, region: str) -> str:
+    """Find a resource ID by name and region."""
+    resource_id = next(
+        (item.id for item in items if item.name == name and item.region == region),
+        None,
+    )
+    if not resource_id:
+        raise ValueError(
+            f"The `{name}` {resource_type} is not supported in the `{region}` region"
+        )
+    return resource_id
+
+
 def resources_ovh(
     project_id: Annotated[
         str,
@@ -85,32 +98,13 @@ def resources_ovh(
     """
     if user_data:
         instance_opts["user_data"] = base64.b64encode(user_data.encode()).decode()
-    # find flavor ID based on region and instance type
+
     flavors = ovh.cloudproject.get_flavors(service_name=project_id)
-    flavor_id = next(
-        (
-            flavor.id
-            for flavor in flavors.flavors
-            if flavor.name == instance and flavor.region == region
-        ),
-        None,
-    )
-    if not flavor_id:
-        raise ValueError(
-            f"The `{instance}` instance type is not supported in the `{region}` region"
-        )
-    # find an Ubuntu 24.04 image in the region
+    flavor_id = find_resource_id(flavors.flavors, instance, "instance type", region)
+
     images = ovh.cloudproject.get_images(service_name=project_id)
-    image_id = next(
-        (
-            image.id
-            for image in images.images
-            if image.name == image_name and image.region == region
-        ),
-        None,
-    )
-    if not image_id:
-        raise ValueError(f"No `{image_name}` image found in the `{region}` region")
+    image_id = find_resource_id(images.images, image_name, "image", region)
+
     ovh.cloudproject.Instance(
         instance,
         name=instance,
