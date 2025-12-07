@@ -14,6 +14,16 @@ DEFAULTS = {
 
 
 def resources_ovh(
+    project_id: Annotated[
+        str,
+        DefaultOpt(
+            ["--project-id"],
+            type=str,
+            help="OVHcloud project UUID",
+            required=True,
+            envvar="OVH_CLOUD_PROJECT_SERVICE",
+        ),
+    ],
     region: Annotated[
         str,
         DefaultOpt(["--region"], type=click.Choice(data.regions("ovh")), help="Region"),
@@ -70,7 +80,6 @@ def resources_ovh(
     - OVH account
     - OVH project
     """
-    project_id = os.environ.get("OVH_CLOUD_PROJECT_SERVICE")
     if user_data:
         instance_opts["user_data"] = base64.b64encode(user_data.encode()).decode()
     # find flavor ID based on region and instance type
