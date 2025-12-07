@@ -110,7 +110,7 @@ def resources_ovh(
         None,
     )
     if not image_id:
-        raise ValueError(f"No {image_name} image found in the `{region}` region")
+        raise ValueError(f"No `{image_name}` image found in the `{region}` region")
     ovh.cloudproject.Instance(
         instance,
         name=instance,
