@@ -46,6 +46,28 @@ def resources_ovh(
         ),
     ] = os.environ.get("USER_DATA", None),
 ):
+    """Define an OVH cloud instance.
+
+    Required environment variables/configuration:
+
+    - OVH_CLOUD_PROJECT_SERVICE (OVHcloud project UUID)
+    - OVH_ENDPOINT (e.g. ovh-eu)
+    - OVH_CLIENT_ID
+    - OVH_CLIENT_SECRET
+
+    Required permissions:
+
+    - publicCloudProject:apiovh:operation/get
+    - publicCloudProject:apiovh:instance/create
+    - publicCloudProject:apiovh:region/instance/create
+    - publicCloudProject:apiovh:region/instance/get
+    - publicCloudProject:apiovh:instance/delete
+
+    Required scopes:
+
+    - OVH account
+    - OVH project
+    """
     if user_data:
         instance_opts["user_data"] = base64.b64encode(user_data.encode()).decode()
     ovh.cloudproject.Instance(
