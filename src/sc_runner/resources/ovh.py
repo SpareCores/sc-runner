@@ -46,12 +46,13 @@ def resources_ovh(
         ),
     ] = os.environ.get("USER_DATA", None),
 ):
+    if user_data:
+        instance_opts["user_data"] = base64.b64encode(user_data.encode()).decode()
     ovh.cloudproject.Instance(
         instance,
         name=instance,
         # boot_from={"image_id": "93ea90a4-da5f-48d3-8463-83f2a2449ca3"},
         flavor={"flavor_id": instance},
         region=region,
-        user_data=base64.b64decode(user_data),
         **instance_opts,
     )
