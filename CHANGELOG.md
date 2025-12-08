@@ -1,3 +1,7 @@
+# v0.0.33 (2025-12-08)
+
+- Fix passing OVHcloud project ID env var directly when using runner.create() instead of the CLI
+
 # v0.0.32 (2025-12-07)
 
 - Add support for OVHcloud
