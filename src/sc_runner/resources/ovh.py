@@ -34,9 +34,10 @@ def resources_ovh(
             type=str,
             help="OVHcloud project UUID",
             required=True,
-            envvar="OVH_CLOUD_PROJECT_SERVICE",
+            # don't use envvar Click parameter here for the default value
+            # as it's not picked up when using the runner.create() instead of the CLI
         ),
-    ],
+    ] = os.environ.get("OVH_CLOUD_PROJECT_SERVICE"),
     region: Annotated[
         str,
         DefaultOpt(["--region"], type=click.Choice(data.regions("ovh")), help="Region"),
