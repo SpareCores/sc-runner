@@ -4,6 +4,7 @@ from typing import Annotated
 
 import click
 import pulumi_ovh as ovh
+from pulumi import CustomTimeouts, ResourceOptions
 
 from .. import JSON, DefaultOpt, data
 from .base import StackName, default, defaults
@@ -114,5 +115,7 @@ def resources_ovh(
         network={"public": True},
         billing_period="hourly",
         region=region,
+        # OVH default timeout is 1 hour that is overkill, so decrease to 10 mins (like AWS default)
+        opts=ResourceOptions(custom_timeouts=CustomTimeouts(create="10m")),
         **instance_opts,
     )

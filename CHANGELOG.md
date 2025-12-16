@@ -1,3 +1,7 @@
+# v0.0.34 (2025-12-15)
+
+- Decrease OVHcloud instance creation timeout from 1 hour to 10 minutes
+
 # v0.0.33 (2025-12-08)
 
 - Fix passing OVHcloud project ID env var directly when using runner.create() instead of the CLI
