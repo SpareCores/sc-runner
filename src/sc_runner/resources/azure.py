@@ -23,7 +23,7 @@ def resources_azure(
         # get the list of images in the mcr.microsoft.com/azure-cli Docker image (very slow):
         # az vm image list --publisher Canonical --all
         image_offer: Annotated[str, DefaultOpt(["--image-offer"], type=str, help="VM Image offer")] = os.environ.get("AZURE_IMAGE_OFFER", "ubuntu-24_04-lts"),
-        image_sku: Annotated[str, DefaultOpt(["--image-sku"], type=str, help="VM Image SKU")] = os.environ.get("AZURE_IMAGE_SKU", "server"),
+        image_sku: Annotated[str, DefaultOpt(["--image-sku"], type=str, help="VM Image SKU (auto-detected for ARM64 instances)")] = os.environ.get("AZURE_IMAGE_SKU", None),
         image_version: Annotated[str, DefaultOpt(["--image-version"], type=str, help="VM Image version")] = os.environ.get("AZURE_IMAGE_VERSION", "latest"),
         instance: Annotated[str, DefaultOpt(["--instance"], type=click.Choice(data.servers("azure")), help="Instance type"), StackName()] = os.environ.get("INSTANCE_TYPE", "Standard_DS1_v2"),
         public_key: Annotated[str, DefaultOpt(["--public-key"], type=str, help="SSH public key")] = os.environ.get("SSH_PUBLIC_KEY", ""),
@@ -34,6 +34,14 @@ def resources_azure(
         user_data: Annotated[str | None, DefaultOpt(["--user-data"], type=str, help="Base64 encoded string with user_data script to run at boot")] = os.environ.get("USER_DATA", None),
         disk_size: Annotated[int, DefaultOpt(["--disk-size"], type=int, help="Boot disk size in GiBs")] = int(os.environ.get("DISK_SIZE", 30)),
 ):
+    # Auto-detect image SKU based on instance architecture if not provided
+    if image_sku is None:
+        arch = data.server_cpu_architecture("azure", instance).lower()
+        if "arm" in arch:
+            image_sku = "server-arm64"
+        else:
+            image_sku = "server"
+
     res_name = f"{region}{zone}{instance}"
     resource_group = azure_native.resources.ResourceGroup(
         instance,
