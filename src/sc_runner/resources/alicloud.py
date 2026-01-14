@@ -14,6 +14,7 @@ DEFAULTS = {
     "instance_opts": ("ALICLOUD_INSTANCE_OPTS", dict(
         internet_charge_type="PayByTraffic",
         internet_max_bandwidth_out=5,
+        system_disk_category="cloud_auto",
     )),
     "sg_opts": ("ALICLOUD_SG_OPTS", dict()),
     "vpc_opts": ("ALICLOUD_VPC_OPTS", dict(cidr_block="172.16.0.0/12")),
@@ -53,15 +54,20 @@ def resources_alicloud(
 
     # Get Ubuntu image
     if "image_id" not in instance_opts:
+        # NOTE: The Pulumi Alicloud provider has a bug where the architecture filter
+        # only accepts "i386" or "x86_64", but not "arm64". The error message is:
+        # "expected architecture to be one of [i386 x86_64], got arm64 ()"
+        # So we fetch all images without the architecture filter and filter in Python.
         images = alicloud.ecs.get_images(
             owners="system",
             name_regex=image_name,
-            architecture=arch,
             opts=pulumi.InvokeOptions(provider=provider),
         )
-        if not images.images:
+        # Filter images by architecture in Python since the provider doesn't support arm64 filter
+        filtered_images = [img for img in images.images if img.architecture == arch]
+        if not filtered_images:
             raise ValueError(f"No image found matching {image_name} for architecture {arch}")
-        instance_opts["image_id"] = images.images[0].id
+        instance_opts["image_id"] = filtered_images[0].id
 
     # Get VPC if not provided
     vpc_id = sg_opts.get("vpc_id") or instance_opts.get("vpc_id")
