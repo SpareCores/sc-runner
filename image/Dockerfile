@@ -4,9 +4,12 @@ VOLUME /data/backend
 ENV PULUMI_CONFIG_PASSPHRASE=""
 ENV VIRTUAL_ENV="/pulumi_venv"
 ENV PATH=/root/.pulumi/bin:$VIRTUAL_ENV/bin:$PATH
-RUN curl -fsSL https://get.pulumi.com | sh && for i in azure-native aws gcp; do pulumi plugin install resource $i; done
+RUN curl -fsSL https://get.pulumi.com | sh && \
+    for i in \
+    azure-native aws gcp alicloud; \
+    do pulumi plugin install resource $i; done
 RUN --mount=id=root,type=cache,target=/root,sharing=shared \
-    python -m venv --without-pip "$VIRTUAL_ENV" && \
-    curl -sSLf https://bootstrap.pypa.io/get-pip.py | python - && \
-    pip install "sparecores-runner>=0.0.36"
+    python -m venv "$VIRTUAL_ENV" && \
+    "$VIRTUAL_ENV/bin/pip" install uv && \
+    uv pip install "sparecores-runner>=0.0.36" --python "$VIRTUAL_ENV/bin/python"
 ENTRYPOINT sc-runner
