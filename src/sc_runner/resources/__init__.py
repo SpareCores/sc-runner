@@ -1,6 +1,7 @@
 import inspect
 import sys
 
+from .alicloud import resources_alicloud
 from .aws import resources_aws
 from .azure import resources_azure
 from .base import *
@@ -21,6 +22,7 @@ supported_vendors = {
 
 
 __all__ = [
+    "resources_alicloud",
     "resources_aws",
     "resources_azure",
     "resources_gcp",

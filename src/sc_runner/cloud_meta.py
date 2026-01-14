@@ -5,7 +5,7 @@ CLOUD_METADATA_ENDPOINTS = {
     "aws": "http://169.254.169.254/latest/meta-data/instance-id",
     "azure": "http://169.254.169.254/metadata/instance/compute/vmId?api-version=2021-02-01",
     "gcp": "http://metadata.google.internal/computeMetadata/v1/instance/id",
-    "alibaba": "http://100.100.100.200/latest/meta-data/instance-id",
+    "alicloud": "http://100.100.100.200/latest/meta-data/instance-id",
     "digitalocean": "http://169.254.169.254/metadata/v1/id",
     "oracle": "http://169.254.169.254/opc/v1/instance/id",
     "openstack": "http://169.254.169.254/openstack/latest/meta_data.json",
