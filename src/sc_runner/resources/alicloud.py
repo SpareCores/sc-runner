@@ -69,28 +69,12 @@ def resources_alicloud(
             raise ValueError(f"No image found matching {image_name} for architecture {arch}")
         instance_opts["image_id"] = filtered_images[0].id
 
-    # Get VPC if not provided
+    # Always create a dedicated VPC and vswitch for this instance to avoid conflicts
+    # when the function is called multiple times with the same arguments
     vpc_id = sg_opts.get("vpc_id") or instance_opts.get("vpc_id")
     vswitch_id = instance_opts.get("vswitch_id")
-    created_vpc = None
 
-    if not vpc_id:
-        # First try to get the default VPC
-        vpc_data = alicloud.vpc.get_networks(
-            is_default=True,
-            opts=pulumi.InvokeOptions(provider=provider),
-        )
-        if vpc_data.vpcs:
-            vpc_id = vpc_data.vpcs[0].vpc_id
-        else:
-            # No default VPC, try to get any VPC
-            vpc_data = alicloud.vpc.get_networks(
-                opts=pulumi.InvokeOptions(provider=provider),
-            )
-            if vpc_data.vpcs:
-                vpc_id = vpc_data.vpcs[0].vpc_id
-
-    # If still no VPC, create one
+    # Only create VPC if not explicitly provided
     if not vpc_id:
         created_vpc = alicloud.vpc.Network(
             instance,
@@ -100,18 +84,7 @@ def resources_alicloud(
         )
         vpc_id = created_vpc.id
 
-    # Get a vswitch if not provided
-    if not vswitch_id:
-        # Only search for existing vswitches if we didn't create the VPC
-        if created_vpc is None:
-            vswitch_data = alicloud.vpc.get_switches(
-                vpc_id=vpc_id,
-                opts=pulumi.InvokeOptions(provider=provider),
-            )
-            if vswitch_data.vswitches:
-                vswitch_id = vswitch_data.vswitches[0].vswitch_id
-
-    # If still no vswitch, create one
+    # Only create vswitch if not explicitly provided
     if not vswitch_id:
         # Get available zones for VSwitch creation
         zones_data = alicloud.get_zones(
