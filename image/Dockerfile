@@ -11,5 +11,5 @@ RUN curl -fsSL https://get.pulumi.com | sh && \
 RUN --mount=id=root,type=cache,target=/root,sharing=shared \
     python -m venv "$VIRTUAL_ENV" && \
     "$VIRTUAL_ENV/bin/pip" install uv && \
-    uv pip install "sparecores-runner>=0.0.37" --python "$VIRTUAL_ENV/bin/python"
+    uv pip install "sparecores-runner>=0.0.38" --python "$VIRTUAL_ENV/bin/python"
 ENTRYPOINT sc-runner
