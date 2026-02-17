@@ -55,7 +55,7 @@ def resources_ovh(
     ] = os.environ.get("INSTANCE_TYPE", "c3-4"),
     image_name: Annotated[
         str, DefaultOpt(["--image-name"], type=str, help="Boot image name")
-    ] = "Ubuntu 25.04",
+    ] = "Ubuntu 24.04",
     instance_opts: Annotated[
         str,
         DefaultOpt(
