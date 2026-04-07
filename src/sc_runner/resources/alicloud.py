@@ -62,6 +62,8 @@ def resources_alicloud(
         images = alicloud.ecs.get_images(
             owners="system",
             name_regex=image_name,
+            instance_type=instance,
+            most_recent=True,
             opts=pulumi.InvokeOptions(provider=provider),
         )
         # Filter images by architecture in Python since the provider doesn't support arm64 filter
@@ -91,14 +93,27 @@ def resources_alicloud(
             # Use the specified availability zone
             zone_id = availability_zone
         else:
-            # Get available zones for VSwitch creation
-            zones_data = alicloud.get_zones(
-                available_resource_creation="VSwitch",
+            # Prefer a zone that supports the selected instance type + image pair.
+            # This avoids later creation failures after image selection succeeds.
+            instance_types = alicloud.ecs.get_instance_types(
+                instance_type=instance,
+                image_id=instance_opts["image_id"],
                 opts=pulumi.InvokeOptions(provider=provider),
             )
-            if not zones_data.zones:
-                raise ValueError(f"No zones available for VSwitch creation in region {region}")
-            zone_id = zones_data.zones[0].id
+            if (
+                instance_types.instance_types
+                and instance_types.instance_types[0].availability_zones
+            ):
+                zone_id = instance_types.instance_types[0].availability_zones[0]
+            else:
+                # Fallback to any zone that supports VSwitch creation.
+                zones_data = alicloud.get_zones(
+                    available_resource_creation="VSwitch",
+                    opts=pulumi.InvokeOptions(provider=provider),
+                )
+                if not zones_data.zones:
+                    raise ValueError(f"No zones available for VSwitch creation in region {region}")
+                zone_id = zones_data.zones[0].id
         
         vswitch_opts["vpc_id"] = vpc_id
         vswitch_opts["zone_id"] = zone_id
