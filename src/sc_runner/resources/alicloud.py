@@ -7,6 +7,8 @@ import copy
 import os
 import pulumi
 import pulumi_alicloud as alicloud
+from pulumi_alicloud.vpc.network import Network as VpcNetwork
+from pulumi_alicloud.vpc.switch import Switch as VpcSwitch
 
 
 DEFAULTS = {
@@ -79,7 +81,7 @@ def resources_alicloud(
 
     # Only create VPC if not explicitly provided
     if not vpc_id:
-        created_vpc = alicloud.vpc.Network(
+        created_vpc = VpcNetwork(
             instance,
             vpc_name=f"sc-runner-{instance}",
             opts=pulumi.ResourceOptions(provider=provider),
@@ -118,7 +120,7 @@ def resources_alicloud(
         vswitch_opts["vpc_id"] = vpc_id
         vswitch_opts["zone_id"] = zone_id
 
-        created_vswitch = alicloud.vpc.Switch(
+        created_vswitch = VpcSwitch(
             instance,
             vswitch_name=f"sc-runner-{instance}",
             opts=pulumi.ResourceOptions(provider=provider),
