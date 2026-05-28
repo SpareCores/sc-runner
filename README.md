@@ -22,9 +22,11 @@ For more details, see the supported vendor's Pulumi integration:
 * [AWS](https://www.pulumi.com/registry/packages/aws/installation-configuration/)
 * [Azure](https://www.pulumi.com/registry/packages/azure-native/installation-configuration/)
 * [GCP](https://www.pulumi.com/registry/packages/gcp/installation-configuration/), [GOOGLE_CREDENTIALS](https://www.pulumi.com/registry/packages/gcp/service-account/)
+* [Alibaba Cloud](https://www.pulumi.com/registry/packages/alicloud/)
 * [Hetzner Cloud](https://www.pulumi.com/registry/packages/hcloud/)
 * [UpCloud](https://github.com/UpCloudLtd/pulumi-upcloud)
 * [OVHcloud](https://www.pulumi.com/registry/packages/ovh/)
+* [Vultr](https://www.pulumi.com/registry/packages/vultr/)
 
 ## Pulumi
 
@@ -49,8 +51,10 @@ Commands:
   azure
   gcp
   hcloud
+  alicloud
   ovh
   upcloud
+  vultr
 ```
 
 Or by setting the following environment variables:

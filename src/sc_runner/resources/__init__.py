@@ -9,6 +9,7 @@ from .gcp import resources_gcp
 from .hcloud import resources_hcloud
 from .ovh import resources_ovh
 from .upcloud import resources_upcloud
+from .vultr import resources_vultr
 
 # method name prefix for initializing vendor-specific resources
 PREFIX = "resources_"
@@ -29,5 +30,6 @@ __all__ = [
     "resources_hcloud",
     "resources_ovh",
     "resources_upcloud",
+    "resources_vultr",
     "supported_vendors",
 ]
