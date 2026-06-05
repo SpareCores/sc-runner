@@ -38,3 +38,17 @@ def servers_vendors(vendor: str, region: str | None = None, zone: str | None = N
 
 def server_cpu_architecture(vendor: str, server: str) -> str:
     return session.exec(select(Server.cpu_architecture).where(Server.vendor_id == vendor).where(Server.api_reference == server)).one().value
+
+
+def hcloud_location(region: str) -> str:
+    """Map a Hetzner datacenter (api_reference) or region_id to a location name."""
+    row = session.exec(
+        select(Region)
+        .where(Region.vendor_id == "hcloud")
+        .where((Region.api_reference == region) | (Region.region_id == region))
+    ).first()
+    if row and row.aliases:
+        return row.aliases[0]
+    if "-dc" in region:
+        return region.split("-dc", 1)[0]
+    return region
