@@ -33,12 +33,14 @@ def resources_hcloud(
         )
         instance_opts["ssh_keys"] = [ssh_key.id]
 
+    instance_opts.pop("datacenter", None)
+
     hcloud.Server(
         instance,
         name=instance,
         image="ubuntu-24.04",
         server_type=instance,
-        datacenter=region,
+        location=data.hcloud_location(region),
         user_data=user_data,
         **instance_opts,
     )
