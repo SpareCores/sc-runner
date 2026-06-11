@@ -1,3 +1,7 @@
+# v0.0.44 (2026-06-11)
+
+- Require `pulumi-aws>=6.83.4` for `aws.vpc.SecurityGroupIngressRule` / `SecurityGroupEgressRule` support on Python 3.12
+
 # v0.0.43 (2026-06-05)
 
 - Add Vultr support (`sc-runner create vultr`, `ediri-vultr` dependency)
