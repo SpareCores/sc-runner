@@ -48,8 +48,8 @@ def resources_aws(
         vpc_opts: Annotated[str, DefaultOpt(["--vpc-opts"], type=JSON, default=defaults(DEFAULTS, "vpc_opts"), help="Pulumi aws.ec2.Vpc options")] = default(DEFAULTS, "vpc_opts"),
         subnet_opts: Annotated[str, DefaultOpt(["--subnet-opts"], type=JSON, default=defaults(DEFAULTS, "subnet_opts"), help="Pulumi aws.ec2.Subnet options")] = default(DEFAULTS, "subnet_opts"),
         sg_opts: Annotated[str, DefaultOpt(["--sg-opts"], type=JSON, default=defaults(DEFAULTS, "sg_opts"), help="Pulumi aws.ec2.SecurityGroup options")] = default(DEFAULTS, "sg_opts"),
-        ingress_rules: Annotated[str, DefaultOpt(["--ingress-rules"], type=JSON, default=defaults(DEFAULTS, "ingress_rules"), help="List of Pulumi aws.ec2.SecurityGroupIngressRule options")] = default(DEFAULTS, "ingress_rules"),
-        egress_rules: Annotated[str, DefaultOpt(["--egress-rules"], type=JSON, default=defaults(DEFAULTS, "egress_rules"), help="List of Pulumi aws.ec2.SecurityGroupEgressRule options")] = default(DEFAULTS, "egress_rules"),
+        ingress_rules: Annotated[str, DefaultOpt(["--ingress-rules"], type=JSON, default=defaults(DEFAULTS, "ingress_rules"), help="List of Pulumi aws.vpc.SecurityGroupIngressRule options")] = default(DEFAULTS, "ingress_rules"),
+        egress_rules: Annotated[str, DefaultOpt(["--egress-rules"], type=JSON, default=defaults(DEFAULTS, "egress_rules"), help="List of Pulumi aws.vpc.SecurityGroupEgressRule options")] = default(DEFAULTS, "egress_rules"),
         user_data: Annotated[str | None, DefaultOpt(["--user-data"], type=str, help="Base64 encoded string with user_data script to run at boot")] = os.environ.get("USER_DATA", None),
         disk_size: Annotated[int, DefaultOpt(["--disk-size"], type=int, help="Boot disk size in GiBs")] = int(os.environ.get("DISK_SIZE", 30)),
 ):
