@@ -11,6 +11,49 @@ from pulumi_alicloud.vpc.network import Network as VpcNetwork
 from pulumi_alicloud.vpc.switch import Switch as VpcSwitch
 
 
+def shared_vpc_name(region: str, name_prefix: str) -> str:
+    return f"{name_prefix}-{region}"
+
+
+def shared_vswitch_name(region: str, zone_id: str, name_prefix: str) -> str:
+    return f"{name_prefix}-{region}-{zone_id}"
+
+
+def lookup_shared_vpc_id(
+    region: str, provider: alicloud.Provider, name_prefix: str
+) -> str | None:
+    if not name_prefix:
+        return None
+    networks = alicloud.vpc.get_networks(
+        vpc_name=shared_vpc_name(region, name_prefix),
+        status="Available",
+        opts=pulumi.InvokeOptions(provider=provider),
+    )
+    if networks.ids:
+        return networks.ids[0]
+    return None
+
+
+def lookup_shared_vswitch_id(
+    region: str,
+    zone_id: str,
+    vpc_id: str,
+    provider: alicloud.Provider,
+    name_prefix: str,
+) -> str | None:
+    if not name_prefix:
+        return None
+    vswitches = alicloud.vpc.get_switches(
+        vpc_id=vpc_id,
+        vswitch_name=shared_vswitch_name(region, zone_id, name_prefix),
+        zone_id=zone_id,
+        opts=pulumi.InvokeOptions(provider=provider),
+    )
+    if vswitches.ids:
+        return vswitches.ids[0]
+    return None
+
+
 DEFAULTS = {
     "tags": ("ALICLOUD_TAGS", {"Created-by": "sc-runner"}),
     "instance_opts": ("ALICLOUD_INSTANCE_OPTS", dict(
@@ -36,6 +79,7 @@ def resources_alicloud(
         user_data: Annotated[str | None, DefaultOpt(["--user-data"], type=str, help="Base64 encoded string with user_data script to run at boot")] = os.environ.get("USER_DATA", None),
         disk_size: Annotated[int, DefaultOpt(["--disk-size"], type=int, help="Boot disk size in GiBs")] = int(os.environ.get("DISK_SIZE", 30)),
         availability_zone: Annotated[str | None, DefaultOpt(["--availability-zone"], type=click.Choice(data.zones("alicloud")), help="Availability zone")] = os.environ.get("ALICLOUD_AVAILABILITY_ZONE", None),
+        shared_vpc_name_prefix: Annotated[str, DefaultOpt(["--shared-vpc-name-prefix"], type=str, help="Lookup shared VPC/VSwitch as {prefix}-{region} and {prefix}-{region}-{zone}; create dedicated resources if missing")] = os.environ.get("ALICLOUD_SHARED_VPC_NAME_PREFIX", ""),
 ):
     # as this function might be called multiple times, and we change the values below, we must make sure we work on copies
     instance_opts = copy.deepcopy(instance_opts)
@@ -74,59 +118,63 @@ def resources_alicloud(
             raise ValueError(f"No image found matching {image_name} for architecture {arch}")
         instance_opts["image_id"] = filtered_images[0].id
 
-    # Always create a dedicated VPC and vswitch for this instance to avoid conflicts
-    # when the function is called multiple times with the same arguments
     vpc_id = sg_opts.get("vpc_id") or instance_opts.get("vpc_id")
     vswitch_id = instance_opts.get("vswitch_id")
 
-    # Only create VPC if not explicitly provided
-    if not vpc_id:
-        created_vpc = VpcNetwork(
-            instance,
-            vpc_name=f"sc-runner-{instance}",
-            opts=pulumi.ResourceOptions(provider=provider),
-            **vpc_opts,
+    if availability_zone:
+        zone_id = availability_zone
+    else:
+        # Prefer a zone that supports the selected instance type + image pair.
+        # This avoids later creation failures after image selection succeeds.
+        instance_types = alicloud.ecs.get_instance_types(
+            instance_type=instance,
+            image_id=instance_opts["image_id"],
+            opts=pulumi.InvokeOptions(provider=provider),
         )
-        vpc_id = created_vpc.id
-
-    # Only create vswitch if not explicitly provided
-    if not vswitch_id:
-        if availability_zone:
-            # Use the specified availability zone
-            zone_id = availability_zone
+        if (
+            instance_types.instance_types
+            and instance_types.instance_types[0].availability_zones
+        ):
+            zone_id = instance_types.instance_types[0].availability_zones[0]
         else:
-            # Prefer a zone that supports the selected instance type + image pair.
-            # This avoids later creation failures after image selection succeeds.
-            instance_types = alicloud.ecs.get_instance_types(
-                instance_type=instance,
-                image_id=instance_opts["image_id"],
+            # Fallback to any zone that supports VSwitch creation.
+            zones_data = alicloud.get_zones(
+                available_resource_creation="VSwitch",
                 opts=pulumi.InvokeOptions(provider=provider),
             )
-            if (
-                instance_types.instance_types
-                and instance_types.instance_types[0].availability_zones
-            ):
-                zone_id = instance_types.instance_types[0].availability_zones[0]
-            else:
-                # Fallback to any zone that supports VSwitch creation.
-                zones_data = alicloud.get_zones(
-                    available_resource_creation="VSwitch",
-                    opts=pulumi.InvokeOptions(provider=provider),
-                )
-                if not zones_data.zones:
-                    raise ValueError(f"No zones available for VSwitch creation in region {region}")
-                zone_id = zones_data.zones[0].id
-        
-        vswitch_opts["vpc_id"] = vpc_id
-        vswitch_opts["zone_id"] = zone_id
+            if not zones_data.zones:
+                raise ValueError(f"No zones available for VSwitch creation in region {region}")
+            zone_id = zones_data.zones[0].id
 
-        created_vswitch = VpcSwitch(
-            instance,
-            vswitch_name=f"sc-runner-{instance}",
-            opts=pulumi.ResourceOptions(provider=provider),
-            **vswitch_opts,
-        )
-        vswitch_id = created_vswitch.id
+    shared_vpc_id = lookup_shared_vpc_id(region, provider, shared_vpc_name_prefix)
+    if not vpc_id:
+        if shared_vpc_id:
+            vpc_id = shared_vpc_id
+        else:
+            created_vpc = VpcNetwork(
+                instance,
+                vpc_name=f"sc-runner-{instance}",
+                opts=pulumi.ResourceOptions(provider=provider),
+                **vpc_opts,
+            )
+            vpc_id = created_vpc.id
+
+    if not vswitch_id:
+        if shared_vpc_id and vpc_id == shared_vpc_id:
+            vswitch_id = lookup_shared_vswitch_id(
+                region, zone_id, vpc_id, provider, shared_vpc_name_prefix
+            )
+        if not vswitch_id:
+            vswitch_opts["vpc_id"] = vpc_id
+            vswitch_opts["zone_id"] = zone_id
+
+            created_vswitch = VpcSwitch(
+                instance,
+                vswitch_name=f"sc-runner-{instance}",
+                opts=pulumi.ResourceOptions(provider=provider),
+                **vswitch_opts,
+            )
+            vswitch_id = created_vswitch.id
 
     # Create key pair if public key is provided
     if public_key and "key_name" not in instance_opts:

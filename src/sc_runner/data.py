@@ -18,6 +18,31 @@ def zones(vendor: str):
     return session.exec(select(Zone.api_reference).where(Zone.vendor_id == vendor)).all()
 
 
+def plan_regions(vendor: str, server: str) -> list[str]:
+    """Return region api_reference values where server has ACTIVE ONDEMAND prices."""
+    stmt = (
+        select(Region.api_reference)
+        .join(
+            ServerPrice,
+            (ServerPrice.vendor_id == Region.vendor_id)
+            & (ServerPrice.region_id == Region.region_id),
+        )
+        .join(
+            Server,
+            (Server.vendor_id == ServerPrice.vendor_id)
+            & (Server.server_id == ServerPrice.server_id),
+        )
+        .where(ServerPrice.vendor_id == vendor)
+        .where(Server.api_reference == server)
+        .where(Server.status == "ACTIVE")
+        .where(ServerPrice.status == "ACTIVE")
+        .where(ServerPrice.allocation == "ONDEMAND")
+        .distinct()
+        .order_by(Region.api_reference)
+    )
+    return list(session.exec(stmt).all())
+
+
 def servers(vendor: str, region: str | None = None, zone: str | None = None):
     stmt = select(ServerPrice.server_id, Server.api_reference).join(Zone).join(Server).where(ServerPrice.vendor_id == vendor)
     if region:

@@ -1,12 +1,15 @@
 from .. import DefaultOpt, JSON
 from .. import data
 from .base import StackName, default, defaults
+from functools import lru_cache
 from typing import Annotated
 import click
 import copy
 import os
 import pulumi
 import ediri_vultr as vultr
+from sc_crawler.tables import Server
+from sqlmodel import select
 
 
 DEFAULTS = {
@@ -14,6 +17,56 @@ DEFAULTS = {
     "instance_opts": ("VULTR_INSTANCE_OPTS", dict()),
     "provider_opts": ("VULTR_PROVIDER_OPTS", dict()),
 }
+
+
+@lru_cache
+def _is_bare_metal(plan: str) -> bool:
+    family = data.session.exec(
+        select(Server.family)
+        .where(Server.vendor_id == "vultr")
+        .where(Server.api_reference == plan)
+    ).one()
+    return family.startswith("Bare Metal")
+
+
+def resolve_plan(instance: str, disk_size: int) -> str:
+    """Return a deployable Vultr plan id, remapping block-only VX1 tiers when needed."""
+    row = data.session.exec(
+        select(Server)
+        .where(Server.vendor_id == "vultr")
+        .where(Server.api_reference == instance)
+    ).one()
+    if row.storage_size > 1:
+        return instance
+    candidates = data.session.exec(
+        select(Server.api_reference, Server.storage_size)
+        .where(Server.vendor_id == "vultr")
+        .where(Server.family == row.family)
+        .where(Server.vcpus == row.vcpus)
+        .where(Server.memory_amount == row.memory_amount)
+        .where(Server.storage_size > 1)
+        .where(Server.status == "ACTIVE")
+        .order_by(Server.storage_size)
+    ).all()
+    if not candidates:
+        raise ValueError(
+            f"Vultr plan '{instance}' requires block storage and no ACTIVE sibling plan "
+            f"exists in sc-data for family={row.family!r}"
+        )
+    for api_reference, storage_size in candidates:
+        if storage_size >= disk_size:
+            return api_reference
+    return candidates[-1][0]
+
+
+def filter_regions(instance: str, regions: list[str], disk_size: int = 30) -> list[str]:
+    """Prefer sc-data regions for the deployable plan (resolved when remapped)."""
+    plan = resolve_plan(instance, disk_size) if not _is_bare_metal(instance) else instance
+    plan_regions = data.plan_regions("vultr", plan)
+    if not plan_regions:
+        return regions
+    filtered = [r for r in regions if r in plan_regions]
+    return filtered or plan_regions
 
 
 def resources_vultr(
@@ -51,6 +104,10 @@ def resources_vultr(
         str | None,
         DefaultOpt(["--user-data"], type=str, help="Base64 encoded string with user_data script to run at boot"),
     ] = os.environ.get("USER_DATA", None),
+    disk_size: Annotated[
+        int,
+        DefaultOpt(["--disk-size"], type=int, help="Minimum bundled storage in GiB for block-only VX1 plans"),
+    ] = int(os.environ.get("DISK_SIZE", 30)),
 ):
     # as this function might be called multiple times, and we change the values below, we must make sure we work on copies
     instance_opts = copy.deepcopy(instance_opts)
@@ -58,6 +115,11 @@ def resources_vultr(
     tags = copy.deepcopy(tags)
     if not isinstance(tags, list):
         raise ValueError("tags must be a list of strings for Vultr (e.g. ['created-by:sc-runner'])")
+
+    bare_metal = _is_bare_metal(instance)
+    plan = instance if bare_metal else resolve_plan(instance, disk_size)
+    if plan != instance:
+        pulumi.log.info(f"Remapped Vultr plan {instance} -> {plan} (storage >= {disk_size} GiB)")
 
     provider = vultr.Provider(
         resource_name=region,
@@ -77,17 +139,22 @@ def resources_vultr(
     if user_data:
         instance_opts["user_data"] = user_data
 
-    # Validate the selected region and plan exist and are compatible.
     vultr.get_region(
         filters=[vultr.GetRegionFilterArgs(name="id", values=[region])],
         opts=pulumi.InvokeOptions(provider=provider),
     )
-    plan_info = vultr.get_plan(
-        filters=[vultr.GetPlanFilterArgs(name="id", values=[instance])],
-        opts=pulumi.InvokeOptions(provider=provider),
-    )
+    if bare_metal:
+        plan_info = vultr.get_bare_metal_plan(
+            filters=[vultr.GetBareMetalPlanFilterArgs(name="id", values=[instance])],
+            opts=pulumi.InvokeOptions(provider=provider),
+        )
+    else:
+        plan_info = vultr.get_plan(
+            filters=[vultr.GetPlanFilterArgs(name="id", values=[plan])],
+            opts=pulumi.InvokeOptions(provider=provider),
+        )
     if region not in plan_info.locations:
-        raise ValueError(f"Vultr plan '{instance}' is not available in region '{region}'")
+        raise ValueError(f"Vultr plan '{plan}' is not available in region '{region}'")
 
     if "os_id" not in instance_opts and "image_id" not in instance_opts and "snapshot_id" not in instance_opts and "iso_id" not in instance_opts:
         os_info = vultr.get_os(
@@ -96,15 +163,26 @@ def resources_vultr(
         )
         instance_opts["os_id"] = int(os_info.id)
 
-    # Keep tags stable and include a Name-like label for easier discovery.
     instance_opts["tags"] = [*tags, f"name:{instance}"]
 
-    vultr.Instance(
-        instance,
-        region=region,
-        plan=instance,
-        label=instance,
-        hostname=instance,
-        opts=pulumi.ResourceOptions(provider=provider),
-        **instance_opts,
-    )
+    resource_opts = pulumi.ResourceOptions(provider=provider)
+    if bare_metal:
+        vultr.BareMetalServer(
+            instance,
+            plan=instance,
+            region=region,
+            label=instance,
+            hostname=instance,
+            opts=resource_opts,
+            **instance_opts,
+        )
+    else:
+        vultr.Instance(
+            instance,
+            region=region,
+            plan=plan,
+            label=instance,
+            hostname=instance,
+            opts=resource_opts,
+            **instance_opts,
+        )
