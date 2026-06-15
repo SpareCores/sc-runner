@@ -66,6 +66,19 @@ DEFAULTS = {
     "vswitch_opts": ("ALICLOUD_VSWITCH_OPTS", dict(cidr_block="172.16.0.0/21")),
 }
 
+
+def cleanup_regions(
+    instance: str,
+    regions: list[str],
+    zones: list[str],
+    zone_to_region: dict[str, str],
+) -> list[str]:
+    """Regions to scan when destroying stacks (catalog + zones + plan pricing)."""
+    from_zones = [zone_to_region[z] for z in zones if z in zone_to_region]
+    plan_regions = data.plan_regions("alicloud", instance)
+    return list(dict.fromkeys([*regions, *from_zones, *plan_regions]))
+
+
 def resources_alicloud(
         region: Annotated[str, DefaultOpt(["--region"], type=click.Choice(data.regions("alicloud")), help="Region"), StackName()] = os.environ.get("ALIBABA_CLOUD_REGION", "us-west-1"),
         instance: Annotated[str, DefaultOpt(["--instance"], type=click.Choice(data.servers("alicloud")), help="Instance type"), StackName()] = os.environ.get("INSTANCE_TYPE", "ecs.t5-lc1m1.small"),

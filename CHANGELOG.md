@@ -1,3 +1,9 @@
+# v0.0.48 (2026-06-15)
+
+- Alicloud: add `cleanup_regions()` to union catalog, zone, and plan-pricing regions for inspector cleanup
+- `destroy_stack`: tolerate refresh/destroy failures when cloud resources are already gone (Vultr 404/invalid instance-id; Alicloud missing ECS instances and security groups)
+- `destroy_stack`: prune ghost custom resources from Pulumi state via `export_stack`/`import_stack`, retry destroy, and force-remove the stack when needed
+
 # v0.0.46 (2026-06-15)
 
 - `destroy_stack`: continue when Pulumi refresh reports missing Vultr instances (404), so stale stacks can still be destroyed

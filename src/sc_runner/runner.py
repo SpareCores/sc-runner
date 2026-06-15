@@ -2,6 +2,7 @@ from . import DefaultOpt
 from . import resources
 from .cloud_meta import get_instance_id
 from importlib.metadata import version, PackageNotFoundError
+from pulumi.automation import Deployment
 from pulumi.automation import LocalWorkspaceOptions
 from pulumi.automation import ProjectBackend
 from pulumi.automation import ProjectSettings
@@ -93,13 +94,20 @@ def destroy(vendor, pulumi_opts, resource_opts, stack_opts=dict(on_output=print)
     stack.up(**stack_opts)
 
 
-_MISSING_ON_REFRESH_MARKERS = (
+_MISSING_CLOUD_RESOURCE_MARKERS = (
     "instance not found",
     "server not found",
     '"status":404',
     "status\":404",
     "error getting instance",
     "error getting bare metal",
+    "error destroying instance",
+    "error destroying ssh",
+    "invalid instance-id",
+    "invalid instance id",
+    "invalidinstanceid.notfound",
+    "invalidsecuritygroupid.notfound",
+    "incorrectinstancestatus",
 )
 
 
@@ -114,9 +122,13 @@ def _exception_text(exc: BaseException) -> str:
     return "\n".join(parts)
 
 
-def _refresh_failed_due_to_missing_resource(exc: BaseException) -> bool:
+def _missing_cloud_resource_failure(exc: BaseException) -> bool:
     text = _exception_text(exc).lower()
-    return any(marker in text for marker in _MISSING_ON_REFRESH_MARKERS)
+    return any(marker in text for marker in _MISSING_CLOUD_RESOURCE_MARKERS)
+
+
+def _refresh_failed_due_to_missing_resource(exc: BaseException) -> bool:
+    return _missing_cloud_resource_failure(exc)
 
 
 def _refresh_stack(stack, stack_opts):
@@ -124,12 +136,80 @@ def _refresh_stack(stack, stack_opts):
     try:
         stack.refresh(**stack_opts)
     except Exception as exc:
-        if not _refresh_failed_due_to_missing_resource(exc):
+        if not _missing_cloud_resource_failure(exc):
             raise
         on_output(
             "Refresh reported missing cloud resource(s); continuing with destroy "
             f"({exc})"
         )
+
+
+def _pruned_stack_resources(resources: list) -> list:
+    """Keep only the stack record and non-custom resources after ghost pruning."""
+    return [
+        res
+        for res in resources
+        if res.get("type") == "pulumi:pulumi:Stack" or not res.get("custom", True)
+    ]
+
+
+def _custom_resource_urns(stack) -> list[str]:
+    deployment = stack.export_stack()
+    resources = deployment.deployment.get("resources", [])
+    return [
+        res["urn"]
+        for res in resources
+        if res.get("urn")
+        and res.get("type") != "pulumi:pulumi:Stack"
+        and res.get("custom", True)
+    ]
+
+
+def _prune_custom_resources_from_state(stack, stack_opts) -> bool:
+    """Drop provider-managed resources from state when the cloud copy is already gone."""
+    on_output = stack_opts.get("on_output", print)
+    exported = stack.export_stack()
+    resources = exported.deployment.get("resources", [])
+    pruned = _pruned_stack_resources(resources)
+    removed = len(resources) - len(pruned)
+    if not removed:
+        return False
+    on_output(f"Removing {removed} ghost resource(s) from Pulumi state")
+    deployment = copy.deepcopy(exported.deployment)
+    deployment["resources"] = pruned
+    stack.import_stack(Deployment(version=exported.version, deployment=deployment))
+    return True
+
+
+def _destroy_stack(stack, stack_opts) -> bool:
+    """Destroy stack resources. Returns True if stack removal should use --force."""
+    on_output = stack_opts.get("on_output", print)
+    try:
+        stack.destroy(**stack_opts)
+        return False
+    except Exception as exc:
+        if not _missing_cloud_resource_failure(exc):
+            raise
+        on_output(
+            "Destroy reported missing cloud resource(s); pruning from state "
+            f"({exc})"
+        )
+
+    if not _custom_resource_urns(stack):
+        return False
+
+    _prune_custom_resources_from_state(stack, stack_opts)
+    try:
+        stack.destroy(**stack_opts)
+        return False
+    except Exception as exc:
+        if not _missing_cloud_resource_failure(exc):
+            raise
+        on_output(
+            "Destroy still reports missing resources after state prune; "
+            f"force-removing stack ({exc})"
+        )
+        return True
 
 
 def destroy_stack(vendor, pulumi_opts, resource_opts, stack_opts=dict(on_output=print)):
@@ -141,8 +221,8 @@ def destroy_stack(vendor, pulumi_opts, resource_opts, stack_opts=dict(on_output=
 
     stack = pulumi_stack(lambda: None, **pulumi_opts)
     _refresh_stack(stack, stack_opts)
-    stack.destroy(**stack_opts)
-    stack.workspace.remove_stack(stack.name)
+    force_remove = _destroy_stack(stack, stack_opts)
+    stack.workspace.remove_stack(stack.name, force=force_remove)
 
 
 def cancel(vendor, pulumi_opts, resource_opts):
