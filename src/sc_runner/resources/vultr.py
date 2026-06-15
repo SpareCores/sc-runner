@@ -69,6 +69,12 @@ def filter_regions(instance: str, regions: list[str], disk_size: int = 30) -> li
     return filtered or plan_regions
 
 
+def cleanup_regions(instance: str, regions: list[str], disk_size: int = 30) -> list[str]:
+    """Regions to scan when destroying stacks (catalog regions + deployable plan regions)."""
+    deploy_regions = filter_regions(instance, [], disk_size=disk_size)
+    return list(dict.fromkeys([*regions, *deploy_regions]))
+
+
 def resources_vultr(
     region: Annotated[
         str,

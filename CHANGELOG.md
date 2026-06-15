@@ -1,3 +1,8 @@
+# v0.0.46 (2026-06-15)
+
+- `destroy_stack`: continue when Pulumi refresh reports missing Vultr instances (404), so stale stacks can still be destroyed
+- Vultr: add `cleanup_regions()` to union catalog regions with deployable-plan regions during inspector cleanup
+
 # v0.0.45 (2026-06-12)
 
 - Vultr: use `BareMetalServer` for `vbm-*` plans; remap block-only VX1 plans to storage-suffixed siblings via sc-data; filter regions using sc-data for the deployable plan

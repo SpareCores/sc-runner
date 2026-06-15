@@ -93,6 +93,45 @@ def destroy(vendor, pulumi_opts, resource_opts, stack_opts=dict(on_output=print)
     stack.up(**stack_opts)
 
 
+_MISSING_ON_REFRESH_MARKERS = (
+    "instance not found",
+    "server not found",
+    '"status":404',
+    "status\":404",
+    "error getting instance",
+    "error getting bare metal",
+)
+
+
+def _exception_text(exc: BaseException) -> str:
+    parts = [str(exc)]
+    for attr in ("stdout", "stderr", "message"):
+        val = getattr(exc, attr, None)
+        if val:
+            parts.append(str(val))
+    if exc.__cause__:
+        parts.append(_exception_text(exc.__cause__))
+    return "\n".join(parts)
+
+
+def _refresh_failed_due_to_missing_resource(exc: BaseException) -> bool:
+    text = _exception_text(exc).lower()
+    return any(marker in text for marker in _MISSING_ON_REFRESH_MARKERS)
+
+
+def _refresh_stack(stack, stack_opts):
+    on_output = stack_opts.get("on_output", print)
+    try:
+        stack.refresh(**stack_opts)
+    except Exception as exc:
+        if not _refresh_failed_due_to_missing_resource(exc):
+            raise
+        on_output(
+            "Refresh reported missing cloud resource(s); continuing with destroy "
+            f"({exc})"
+        )
+
+
 def destroy_stack(vendor, pulumi_opts, resource_opts, stack_opts=dict(on_output=print)):
     # don't modify incoming opts
     pulumi_opts = copy.deepcopy(pulumi_opts)
@@ -101,7 +140,7 @@ def destroy_stack(vendor, pulumi_opts, resource_opts, stack_opts=dict(on_output=
         pulumi_opts["stack_name"] = get_stack_name(vendor, resource_f, resource_opts)
 
     stack = pulumi_stack(lambda: None, **pulumi_opts)
-    stack.refresh(**stack_opts)
+    _refresh_stack(stack, stack_opts)
     stack.destroy(**stack_opts)
     stack.workspace.remove_stack(stack.name)
 
