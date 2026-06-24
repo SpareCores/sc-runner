@@ -4,7 +4,31 @@ from .base import StackName, default, defaults
 from typing import Annotated
 import click
 import os
-import pulumi_azure_native as azure_native
+from pulumi_azure_native.compute import (
+    HardwareProfileArgs,
+    ImageReferenceArgs,
+    LinuxConfigurationArgs,
+    ManagedDiskParametersArgs,
+    NetworkInterfaceReferenceArgs,
+    NetworkProfileArgs,
+    OSDiskArgs,
+    OSProfileArgs,
+    SshConfigurationArgs,
+    SshPublicKeyArgs,
+    StorageProfileArgs,
+    VirtualMachine,
+)
+from pulumi_azure_native.network import (
+    IPAllocationMethod,
+    NetworkInterface,
+    NetworkInterfaceIPConfigurationArgs,
+    PublicIPAddress,
+    PublicIPAddressArgs,
+    Subnet,
+    SubnetArgs,
+    VirtualNetwork,
+)
+from pulumi_azure_native.resources import ResourceGroup
 
 
 # defaults for JSON-based options
@@ -43,14 +67,14 @@ def resources_azure(
             image_sku = "server"
 
     res_name = f"{region}{zone}{instance}"
-    resource_group = azure_native.resources.ResourceGroup(
+    resource_group = ResourceGroup(
         instance,
         location=region,
         resource_group_name=res_name,
         tags=tags,
     )
 
-    vnet = azure_native.network.VirtualNetwork(
+    vnet = VirtualNetwork(
         instance,
         resource_group_name=resource_group.name,
         location=resource_group.location,
@@ -58,14 +82,14 @@ def resources_azure(
         **vnet_opts,
     )
 
-    subnet = azure_native.network.Subnet(
+    subnet = Subnet(
         instance,
         resource_group_name=resource_group.name,
         virtual_network_name=vnet.name,
         **subnet_opts,
     )
 
-    public_ip = azure_native.network.PublicIPAddress(
+    public_ip = PublicIPAddress(
         instance,
         resource_group_name=resource_group.name,
         location=resource_group.location,
@@ -73,17 +97,17 @@ def resources_azure(
         **publicip_opts,
     )
 
-    network_interface = azure_native.network.NetworkInterface(
+    network_interface = NetworkInterface(
         instance,
         resource_group_name=resource_group.name,
         location=resource_group.location,
-        ip_configurations=[azure_native.network.NetworkInterfaceIPConfigurationArgs(
+        ip_configurations=[NetworkInterfaceIPConfigurationArgs(
             name=instance,
-            subnet=azure_native.network.SubnetArgs(
+            subnet=SubnetArgs(
                 id=subnet.id
             ),
-            private_ip_allocation_method=azure_native.network.IPAllocationMethod.DYNAMIC,
-            public_ip_address=azure_native.network.PublicIPAddressArgs(
+            private_ip_allocation_method=IPAllocationMethod.DYNAMIC,
+            public_ip_address=PublicIPAddressArgs(
                 id=public_ip.id
             ))],
         tags=tags,
@@ -92,19 +116,19 @@ def resources_azure(
     vmopts = dict(
         resource_group_name=resource_group.name,
         location=resource_group.location,
-        network_profile=azure_native.compute.NetworkProfileArgs(
-            network_interfaces=[azure_native.compute.NetworkInterfaceReferenceArgs(
+        network_profile=NetworkProfileArgs(
+            network_interfaces=[NetworkInterfaceReferenceArgs(
                 id=network_interface.id
             )]
         ),
-        hardware_profile=azure_native.compute.HardwareProfileArgs(vm_size=instance),
-        os_profile=azure_native.compute.OSProfileArgs(
+        hardware_profile=HardwareProfileArgs(vm_size=instance),
+        os_profile=OSProfileArgs(
             computer_name="sc-runner",
             admin_username="ubuntu",
-            linux_configuration=azure_native.compute.LinuxConfigurationArgs(
+            linux_configuration=LinuxConfigurationArgs(
                 disable_password_authentication=True,
-                ssh=azure_native.compute.SshConfigurationArgs(
-                    public_keys=[azure_native.compute.SshPublicKeyArgs(
+                ssh=SshConfigurationArgs(
+                    public_keys=[SshPublicKeyArgs(
                         key_data=public_key,
                         path="/home/ubuntu/.ssh/authorized_keys"
                     )
@@ -113,16 +137,16 @@ def resources_azure(
             ),
             custom_data=user_data,
         ),
-            storage_profile=azure_native.compute.StorageProfileArgs(
-                os_disk=azure_native.compute.OSDiskArgs(
+            storage_profile=StorageProfileArgs(
+                os_disk=OSDiskArgs(
                     create_option="FromImage",
-                    managed_disk=azure_native.compute.ManagedDiskParametersArgs(
+                    managed_disk=ManagedDiskParametersArgs(
                         storage_account_type="Standard_LRS"
                     ),
                     caching="ReadWrite",
                     disk_size_gb=disk_size,
                 ),
-                image_reference=azure_native.compute.ImageReferenceArgs(
+                image_reference=ImageReferenceArgs(
                     publisher=image_publisher,
                     offer=image_offer,
                     sku=image_sku,
@@ -133,4 +157,4 @@ def resources_azure(
     )
     if zone is not None:
         vmopts["zones"] = [zone]
-    vm = azure_native.compute.VirtualMachine(instance, **vmopts)
+    vm = VirtualMachine(instance, **vmopts)
