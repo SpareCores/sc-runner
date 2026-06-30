@@ -1,3 +1,8 @@
+# v0.0.50 (2026-06-30)
+
+- Add `server_region_prices`, `server_zone_prices`, and `sort_by_price` for cheapest-first region/zone selection from sc-data
+- Remove Vultr `filter_regions` / `cleanup_regions`; regional fallback lives in sc-inspector
+
 # v0.0.48 (2026-06-15)
 
 - Alicloud: add `cleanup_regions()` to union catalog, zone, and plan-pricing regions for inspector cleanup

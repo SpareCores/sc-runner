@@ -59,22 +59,6 @@ def resolve_plan(instance: str, disk_size: int) -> str:
     return candidates[-1][0]
 
 
-def filter_regions(instance: str, regions: list[str], disk_size: int = 30) -> list[str]:
-    """Prefer sc-data regions for the deployable plan (resolved when remapped)."""
-    plan = resolve_plan(instance, disk_size) if not _is_bare_metal(instance) else instance
-    plan_regions = data.plan_regions("vultr", plan)
-    if not plan_regions:
-        return regions
-    filtered = [r for r in regions if r in plan_regions]
-    return filtered or plan_regions
-
-
-def cleanup_regions(instance: str, regions: list[str], disk_size: int = 30) -> list[str]:
-    """Regions to scan when destroying stacks (catalog regions + deployable plan regions)."""
-    deploy_regions = filter_regions(instance, [], disk_size=disk_size)
-    return list(dict.fromkeys([*regions, *deploy_regions]))
-
-
 def resources_vultr(
     region: Annotated[
         str,
@@ -149,18 +133,6 @@ def resources_vultr(
         filters=[vultr.GetRegionFilterArgs(name="id", values=[region])],
         opts=pulumi.InvokeOptions(provider=provider),
     )
-    if bare_metal:
-        plan_info = vultr.get_bare_metal_plan(
-            filters=[vultr.GetBareMetalPlanFilterArgs(name="id", values=[instance])],
-            opts=pulumi.InvokeOptions(provider=provider),
-        )
-    else:
-        plan_info = vultr.get_plan(
-            filters=[vultr.GetPlanFilterArgs(name="id", values=[plan])],
-            opts=pulumi.InvokeOptions(provider=provider),
-        )
-    if region not in plan_info.locations:
-        raise ValueError(f"Vultr plan '{plan}' is not available in region '{region}'")
 
     if "os_id" not in instance_opts and "image_id" not in instance_opts and "snapshot_id" not in instance_opts and "iso_id" not in instance_opts:
         os_info = vultr.get_os(

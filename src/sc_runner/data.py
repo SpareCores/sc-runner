@@ -43,6 +43,66 @@ def plan_regions(vendor: str, server: str) -> list[str]:
     return list(session.exec(stmt).all())
 
 
+def _min_prices(rows: list[tuple[str, float]]) -> dict[str, float]:
+    prices: dict[str, float] = {}
+    for key, price in rows:
+        if key not in prices or price < prices[key]:
+            prices[key] = price
+    return prices
+
+
+def server_region_prices(vendor: str, server: str) -> dict[str, float]:
+    """Return minimum ACTIVE ONDEMAND hourly price per region api_reference."""
+    stmt = (
+        select(Region.api_reference, ServerPrice.price)
+        .join(
+            ServerPrice,
+            (ServerPrice.vendor_id == Region.vendor_id)
+            & (ServerPrice.region_id == Region.region_id),
+        )
+        .join(
+            Server,
+            (Server.vendor_id == ServerPrice.vendor_id)
+            & (Server.server_id == ServerPrice.server_id),
+        )
+        .where(ServerPrice.vendor_id == vendor)
+        .where(Server.api_reference == server)
+        .where(Server.status == "ACTIVE")
+        .where(ServerPrice.status == "ACTIVE")
+        .where(ServerPrice.allocation == "ONDEMAND")
+    )
+    return _min_prices(session.exec(stmt).all())
+
+
+def server_zone_prices(vendor: str, server: str) -> dict[str, float]:
+    """Return minimum ACTIVE ONDEMAND hourly price per zone api_reference."""
+    stmt = (
+        select(Zone.api_reference, ServerPrice.price)
+        .join(
+            ServerPrice,
+            (ServerPrice.vendor_id == Zone.vendor_id)
+            & (ServerPrice.region_id == Zone.region_id)
+            & (ServerPrice.zone_id == Zone.zone_id),
+        )
+        .join(
+            Server,
+            (Server.vendor_id == ServerPrice.vendor_id)
+            & (Server.server_id == ServerPrice.server_id),
+        )
+        .where(ServerPrice.vendor_id == vendor)
+        .where(Server.api_reference == server)
+        .where(Server.status == "ACTIVE")
+        .where(ServerPrice.status == "ACTIVE")
+        .where(ServerPrice.allocation == "ONDEMAND")
+    )
+    return _min_prices(session.exec(stmt).all())
+
+
+def sort_by_price(keys: list[str], prices: dict[str, float]) -> list[str]:
+    """Sort location keys cheapest-first using sc-data hourly prices."""
+    return sorted(keys, key=lambda key: (prices.get(key, float("inf")), key))
+
+
 def servers(vendor: str, region: str | None = None, zone: str | None = None):
     stmt = select(ServerPrice.server_id, Server.api_reference).join(Zone).join(Server).where(ServerPrice.vendor_id == vendor)
     if region:
