@@ -1,6 +1,7 @@
 from .. import DefaultOpt, JSON
 from .. import data
 from .base import StackName, default, defaults
+from .multi_vm import MultiVmStackSpec, build_server_user_data_b64, export_multi_vm_stack
 from functools import lru_cache
 from typing import Annotated
 import click
@@ -98,7 +99,19 @@ def resources_vultr(
         int,
         DefaultOpt(["--disk-size"], type=int, help="Minimum bundled storage in GiB for block-only VX1 plans"),
     ] = int(os.environ.get("DISK_SIZE", 30)),
+    multi_vm: MultiVmStackSpec | None = None,
 ):
+    if multi_vm is not None:
+        return resources_vultr_multi(
+            region=region,
+            public_key=public_key,
+            tags=tags,
+            instance_opts=instance_opts,
+            provider_opts=provider_opts,
+            os_name=os_name,
+            disk_size=disk_size,
+            multi_vm=multi_vm,
+        )
     # as this function might be called multiple times, and we change the values below, we must make sure we work on copies
     instance_opts = copy.deepcopy(instance_opts)
     provider_opts = copy.deepcopy(provider_opts)
@@ -164,3 +177,97 @@ def resources_vultr(
             opts=resource_opts,
             **instance_opts,
         )
+
+
+def resources_vultr_multi(
+    *,
+    region: str,
+    public_key: str,
+    tags: list[str],
+    instance_opts: dict,
+    provider_opts: dict,
+    os_name: str,
+    disk_size: int,
+    multi_vm: MultiVmStackSpec,
+):
+    instance_opts = copy.deepcopy(instance_opts)
+    provider_opts = copy.deepcopy(provider_opts)
+    tags = copy.deepcopy(tags)
+    if not isinstance(tags, list):
+        raise ValueError("tags must be a list of strings for Vultr (e.g. ['created-by:sc-runner'])")
+
+    if _is_bare_metal(multi_vm.db_instance) or _is_bare_metal(multi_vm.client_instance):
+        raise ValueError("multi_vm is currently supported on Vultr instances only (not bare metal)")
+
+    provider = vultr.Provider(
+        resource_name=region,
+        opts=pulumi.ResourceOptions(),
+        **provider_opts,
+    )
+    vultr.get_region(
+        filters=[vultr.GetRegionFilterArgs(name="id", values=[region])],
+        opts=pulumi.InvokeOptions(provider=provider),
+    )
+    os_info = vultr.get_os(
+        filters=[vultr.GetOsFilterArgs(name="name", values=[os_name])],
+        opts=pulumi.InvokeOptions(provider=provider),
+    )
+    vpc = vultr.Vpc(
+        multi_vm.db_instance,
+        region=region,
+        description=f"sc-runner-{multi_vm.db_instance}",
+        opts=pulumi.ResourceOptions(provider=provider),
+    )
+    if public_key:
+        ssh_key = vultr.SSHKey(
+            multi_vm.db_instance,
+            name=multi_vm.db_instance,
+            ssh_key=public_key,
+            opts=pulumi.ResourceOptions(provider=provider),
+        )
+        ssh_key_ids = [ssh_key.id]
+    else:
+        ssh_key_ids = instance_opts.get("ssh_key_ids", [])
+
+    def vm_opts(instance_type: str, user_data_b64: pulumi.Input[str]):
+        opts = copy.deepcopy(instance_opts)
+        opts["os_id"] = int(os_info.id)
+        opts["user_data"] = user_data_b64
+        opts["ssh_key_ids"] = ssh_key_ids
+        opts["tags"] = [*tags, f"name:{instance_type}"]
+        opts["vpc_ids"] = [vpc.id]
+        return opts
+
+    client_plan = resolve_plan(multi_vm.client_instance, multi_vm.client_disk_gib or disk_size)
+    client = vultr.Instance(
+        f"{multi_vm.client_instance}-client",
+        region=region,
+        plan=client_plan,
+        label=f"{multi_vm.client_instance}-client",
+        hostname=f"{multi_vm.client_instance}-client",
+        opts=pulumi.ResourceOptions(provider=provider),
+        **vm_opts(multi_vm.client_instance, multi_vm.client_user_data_b64),
+    )
+    server_user_data_b64 = build_server_user_data_b64(multi_vm, client.internal_ip)
+    server_plan = resolve_plan(multi_vm.db_instance, multi_vm.db_disk_gib or disk_size)
+    server = vultr.Instance(
+        multi_vm.db_instance,
+        region=region,
+        plan=server_plan,
+        label=multi_vm.db_instance,
+        hostname=multi_vm.db_instance,
+        opts=pulumi.ResourceOptions(provider=provider, depends_on=[client]),
+        **vm_opts(multi_vm.db_instance, server_user_data_b64),
+    )
+
+    export_multi_vm_stack(
+        spec=multi_vm,
+        db_private_ip=server.internal_ip,
+        client_private_ip=client.internal_ip,
+        db_public_ip=server.main_ip,
+        client_public_ip=client.main_ip,
+        region=region,
+        zones=pulumi.Output.all(client.region, server.region).apply(lambda zs: [zs[0], zs[1]]),
+        provisioned_disk_gib=multi_vm.db_disk_gib,
+        client_disk_gib=multi_vm.client_disk_gib,
+    )

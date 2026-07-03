@@ -1,3 +1,8 @@
+# v0.0.51 (2026-07-03)
+
+- Add generic `multi_vm` stack support: role-based `VmSpec`, templated user-data bindings, and shared stack exports for multi-VM workloads
+- All eight vendors (AWS, Azure, GCP, Alicloud, HCloud, OVH, UpCloud, Vultr) can provision paired client + primary VMs via `MultiVmStackSpec`
+
 # v0.0.50 (2026-06-30)
 
 - Add `server_region_prices`, `server_zone_prices`, and `sort_by_price` for cheapest-first region/zone selection from sc-data
