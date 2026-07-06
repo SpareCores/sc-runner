@@ -42,6 +42,9 @@ DEFAULTS = {
     "publicip_opts": ("AZURE_PUBLICIP_OPTS", dict(delete_option="Delete", public_ip_allocation_method="Dynamic")),
 }
 
+# Default managed-disk tier when a VM does not request a specific one.
+DEFAULT_STORAGE_ACCOUNT_TYPE = "Standard_LRS"
+
 def resources_azure(
         region: Annotated[str, DefaultOpt(["--region"], type=click.Choice(data.regions("azure")), help="Region"), StackName()] = os.environ.get("AZURE_REGION", "westeurope"),
         zone: Annotated[str, DefaultOpt(["--zone"], type=click.Choice(sorted(set(data.zones("azure")))), help="Availability zone"), StackName()] = os.environ.get("AZURE_ZONE", None),
@@ -268,7 +271,9 @@ def resources_azure_multi(
         storage_profile=StorageProfileArgs(
             os_disk=OSDiskArgs(
                 create_option="FromImage",
-                managed_disk=ManagedDiskParametersArgs(storage_account_type="Standard_LRS"),
+                managed_disk=ManagedDiskParametersArgs(
+                    storage_account_type=multi_vm.client_disk_type or DEFAULT_STORAGE_ACCOUNT_TYPE
+                ),
                 caching="ReadWrite",
                 disk_size_gb=multi_vm.client_disk_gib,
             ),
@@ -337,7 +342,9 @@ def resources_azure_multi(
         storage_profile=StorageProfileArgs(
             os_disk=OSDiskArgs(
                 create_option="FromImage",
-                managed_disk=ManagedDiskParametersArgs(storage_account_type="Standard_LRS"),
+                managed_disk=ManagedDiskParametersArgs(
+                    storage_account_type=multi_vm.db_disk_type or DEFAULT_STORAGE_ACCOUNT_TYPE
+                ),
                 caching="ReadWrite",
                 disk_size_gb=multi_vm.db_disk_gib,
             ),

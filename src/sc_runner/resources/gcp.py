@@ -135,10 +135,12 @@ def resources_gcp_multi(
     if scheduling_opts:
         common_instance_opts["scheduling"] = gcp.compute.InstanceSchedulingArgs(**scheduling_opts)
 
-    def vm_opts(instance_type: str, user_data_b64: pulumi.Input[str], disk_gib: int):
+    def vm_opts(instance_type: str, user_data_b64: pulumi.Input[str], disk_gib: int, disk_type: str | None = None):
         opts = copy.deepcopy(common_instance_opts)
         init = copy.deepcopy(bootdisk_init_opts)
         init["size"] = disk_gib
+        if disk_type:
+            init["type"] = disk_type
         opts |= dict(
             machine_type=instance_type,
             zone=zone,
@@ -158,7 +160,12 @@ def resources_gcp_multi(
 
     client = gcp.compute.Instance(
         f"{multi_vm.client_instance}-client",
-        **vm_opts(multi_vm.client_instance, multi_vm.client_user_data_b64, multi_vm.client_disk_gib),
+        **vm_opts(
+            multi_vm.client_instance,
+            multi_vm.client_user_data_b64,
+            multi_vm.client_disk_gib,
+            disk_type=multi_vm.client_disk_type,
+        ),
         opts=pulumi.ResourceOptions(provider=provider),
     )
     client_private_ip = client.network_interfaces.apply(lambda nis: nis[0].network_ip if nis else "")
@@ -167,7 +174,7 @@ def resources_gcp_multi(
     server = gcp.compute.Instance(
         multi_vm.db_instance,
         **(
-            vm_opts(multi_vm.db_instance, server_user_data_b64, multi_vm.db_disk_gib)
+            vm_opts(multi_vm.db_instance, server_user_data_b64, multi_vm.db_disk_gib, disk_type=multi_vm.db_disk_type)
             | {"zone": client.zone}
         ),
         opts=pulumi.ResourceOptions(provider=provider, depends_on=[client]),

@@ -1,3 +1,8 @@
+# v0.0.52 (2026-07-06)
+
+- `VmSpec`: add generic optional per-VM storage knobs (`disk_type`, `disk_iops`, `disk_throughput`) honored by the AWS, Azure, and GCP multi-VM stacks; when unset the provider default is used. `MultiVmStackSpec.two_vm` exposes `primary_disk_*` / `client_disk_type` so callers can pick a storage tier without any benchmark-specific defaults living in sc-runner
+- Drop unused/redundant multi-VM code: the `db_*`/`client_*` stack-output aliases (identical to the `{role}_*` exports), the unused generic `export_stack` wrapper, and the unused `MultiVmStackSpec.primary_instance` / `server_user_data_replacements` accessors
+
 # v0.0.51 (2026-07-03)
 
 - Add generic `multi_vm` stack support: role-based `VmSpec`, templated user-data bindings, and shared stack exports for multi-VM workloads

@@ -34,6 +34,26 @@ DEFAULTS = {
 }
 
 
+def _root_block_device_args(
+    volume_size: int,
+    volume_type: str | None = None,
+    iops: int | None = None,
+    throughput: int | None = None,
+) -> dict:
+    """Build root block device kwargs, honoring an optional volume type/IOPS/throughput.
+
+    With no volume_type the AMI default (typically gp3) is used.
+    """
+    args: dict = dict(volume_size=volume_size)
+    if volume_type:
+        args["volume_type"] = volume_type
+        if iops is not None and volume_type in ("gp3", "io1", "io2"):
+            args["iops"] = iops
+        if throughput is not None and volume_type == "gp3":
+            args["throughput"] = throughput
+    return args
+
+
 def resources_aws(
         region: Annotated[str, DefaultOpt(["--region"], type=click.Choice(data.regions("aws")), help="Region"), StackName()] = os.environ.get("AWS_DEFAULT_REGION", "us-east-1"),
         zone: Annotated[str, DefaultOpt(["--zone"], type=click.Choice(data.zones("aws")), help="Availability zone"), StackName()] = os.environ.get("AWS_ZONE", None),
@@ -306,7 +326,14 @@ def resources_aws_multi(
     client_opts["subnet_id"] = subnet.id
     client_opts["associate_public_ip_address"] = True
     client_opts["vpc_security_group_ids"] = [sg.id]
-    client_opts["root_block_device"] = aws.ec2.InstanceRootBlockDeviceArgs(volume_size=multi_vm.client_disk_gib)
+    client_opts["root_block_device"] = aws.ec2.InstanceRootBlockDeviceArgs(
+        **_root_block_device_args(
+            multi_vm.client_disk_gib,
+            multi_vm.client_disk_type,
+            None,
+            None,
+        )
+    )
     if zone:
         client_opts["availability_zone"] = zone
 
@@ -324,7 +351,14 @@ def resources_aws_multi(
     server_opts["subnet_id"] = subnet.id
     server_opts["associate_public_ip_address"] = True
     server_opts["vpc_security_group_ids"] = [sg.id]
-    server_opts["root_block_device"] = aws.ec2.InstanceRootBlockDeviceArgs(volume_size=multi_vm.db_disk_gib)
+    server_opts["root_block_device"] = aws.ec2.InstanceRootBlockDeviceArgs(
+        **_root_block_device_args(
+            multi_vm.db_disk_gib,
+            multi_vm.db_disk_type,
+            multi_vm.db_disk_iops,
+            multi_vm.db_disk_throughput,
+        )
+    )
     server_opts["availability_zone"] = client.availability_zone
 
     server = aws.ec2.Instance(

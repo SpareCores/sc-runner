@@ -14,6 +14,11 @@ class VmSpec:
     role: str
     instance: str
     disk_gib: int = 30
+    # Optional storage tier for this VM. Values are provider-native (e.g. Azure
+    # "Premium_LRS", GCP "pd-ssd", AWS "gp3"); left None the provider default is used.
+    disk_type: str | None = None
+    disk_iops: int | None = None
+    disk_throughput: int | None = None
     user_data_b64: str | None = None
     user_data_template: str | None = None
     user_data_static: dict[str, str] = field(default_factory=dict)
@@ -50,11 +55,7 @@ class MultiVmStackSpec:
     def vm(self, role: str) -> VmSpec:
         return self.vms[role]
 
-    @property
-    def primary_instance(self) -> str:
-        return self.vms[self.primary_role].instance
-
-    # Legacy accessors for the common client + primary (db/server) two-VM pattern.
+    # Convenience accessors for the two-VM db/client topology (the only shape in use).
     @property
     def db_instance(self) -> str:
         return self.vms[self.primary_role].instance
@@ -72,18 +73,24 @@ class MultiVmStackSpec:
         return self.vms["client"].disk_gib
 
     @property
-    def client_user_data_b64(self) -> str:
-        return self.vms["client"].user_data_b64 or ""
+    def db_disk_type(self) -> str | None:
+        return self.vms[self.primary_role].disk_type
 
     @property
-    def server_user_data_replacements(self) -> dict[str, Any] | None:
-        primary = self.vms[self.primary_role]
-        if not primary.user_data_template and not primary.user_data_static:
-            return None
-        out: dict[str, Any] = dict(primary.user_data_static)
-        if primary.user_data_template:
-            out["USER_DATA_TEMPLATE"] = primary.user_data_template
-        return out
+    def db_disk_iops(self) -> int | None:
+        return self.vms[self.primary_role].disk_iops
+
+    @property
+    def db_disk_throughput(self) -> int | None:
+        return self.vms[self.primary_role].disk_throughput
+
+    @property
+    def client_disk_type(self) -> str | None:
+        return self.vms["client"].disk_type
+
+    @property
+    def client_user_data_b64(self) -> str:
+        return self.vms["client"].user_data_b64 or ""
 
     @classmethod
     def two_vm(
@@ -95,6 +102,10 @@ class MultiVmStackSpec:
         client_instance: str,
         primary_disk_gib: int,
         client_disk_gib: int = 30,
+        primary_disk_type: str | None = None,
+        primary_disk_iops: int | None = None,
+        primary_disk_throughput: int | None = None,
+        client_disk_type: str | None = None,
         client_user_data_b64: str,
         primary_user_data_template: str,
         primary_user_data_static: dict[str, str] | None = None,
@@ -113,12 +124,16 @@ class MultiVmStackSpec:
                     role=client_role,
                     instance=client_instance,
                     disk_gib=client_disk_gib,
+                    disk_type=client_disk_type,
                     user_data_b64=client_user_data_b64,
                 ),
                 primary_role: VmSpec(
                     role=primary_role,
                     instance=primary_instance,
                     disk_gib=primary_disk_gib,
+                    disk_type=primary_disk_type,
+                    disk_iops=primary_disk_iops,
+                    disk_throughput=primary_disk_throughput,
                     user_data_template=primary_user_data_template,
                     user_data_static=primary_user_data_static or {},
                     user_data_bindings=bindings,
@@ -216,31 +231,13 @@ def build_server_user_data_b64(
     spec: MultiVmStackSpec,
     client_private_ip: pulumi.Input[str],
 ) -> pulumi.Output[str]:
-    """Render primary-role user-data with peer outputs injected (legacy two-VM helper)."""
+    """Render primary-role user-data with peer outputs injected for the two-VM topology."""
     primary = spec.vms[spec.primary_role]
     sources: dict[tuple[str, str], pulumi.Input[str]] = {}
     for ref in set(primary.user_data_bindings.values()):
         if ref == ("client", "private_ip"):
             sources[ref] = client_private_ip
     return build_user_data_b64(primary, sources=sources)
-
-
-def export_stack(
-    *,
-    spec: MultiVmStackSpec,
-    vms: dict[str, VmOutputs],
-    region: pulumi.Input[str],
-    zones: pulumi.Input[list[str]],
-    extra_exports: dict[str, Any] | None = None,
-) -> None:
-    """Export generic multi-VM stack outputs ({role}_private_ip, etc.)."""
-    _export_stack(
-        spec=spec,
-        vms=vms,
-        region=region,
-        zones=zones,
-        extra_exports={**spec.extra_exports, **(extra_exports or {})},
-    )
 
 
 def export_multi_vm_stack(
@@ -255,7 +252,7 @@ def export_multi_vm_stack(
     provisioned_disk_gib: int,
     client_disk_gib: int,
 ) -> None:
-    """Export stack outputs for a two-VM client/db topology (legacy entry point)."""
+    """Export stack outputs for a two-VM client/db topology."""
     vms = {
         "client": VmOutputs(
             instance=spec.client_instance,
@@ -299,18 +296,6 @@ def _export_stack(
         pulumi.export(f"{role}_public_ip", out.public_ip)
         if out.zone is not None:
             pulumi.export(f"{role}_zone", out.zone)
-
-    # Legacy aliases for client/db inspector stacks.
-    if spec.primary_role in vms:
-        primary = vms[spec.primary_role]
-        pulumi.export("db_instance", primary.instance)
-        pulumi.export("db_private_ip", primary.private_ip)
-        pulumi.export("db_public_ip", primary.public_ip)
-    if "client" in vms:
-        client = vms["client"]
-        pulumi.export("client_instance", client.instance)
-        pulumi.export("client_private_ip", client.private_ip)
-        pulumi.export("client_public_ip", client.public_ip)
 
     for key, value in extra_exports.items():
         pulumi.export(key, value)
