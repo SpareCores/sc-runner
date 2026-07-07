@@ -1,3 +1,10 @@
+# v0.0.54 (2026-07-08)
+
+- Azure DBaaS: fix private DNS zone and VNet link `location` to `global` so Postgres private-link stacks deploy reliably
+- Azure DBaaS: support `PremiumV2_LRS` / `UltraSSD_LRS` Flexible Server storage with explicit IOPS and throughput; keep `Premium_LRS` on tier-based `StorageArgs`
+- `ManagedDbSpec`: split `storage_edition` (catalog label) from `storage_type` (ARM storage SKU); export `storage_edition` from the stack
+- Azure DBaaS: skip default DB user-data bindings when only raw `client_user_data_b64` is supplied
+
 # v0.0.53 (2026-07-07)
 
 - Add Azure DBaaS stack provisioning: `ManagedDbSpec` / `DbaasStackSpec` plus `resources_azure_dbaas()` provisions Azure Flexible Server for Postgres and a companion benchmark VM in one Pulumi stack

@@ -17,7 +17,8 @@ class ManagedDbSpec:
     sku_tier: str = ""
     ha_mode: str = "standalone"
     storage_gib: int = 128
-    storage_type: str = "ManagedDiskV2"
+    storage_type: str = "PremiumV2_LRS"
+    storage_edition: str = "ManagedDiskV2"
     storage_iops_tier: str = "P30"
     admin_login: str = "scadmin"
     admin_password: str = ""

@@ -43,8 +43,44 @@ from .multi_vm import VmSpec, build_user_data_b64
 
 DEFAULT_STORAGE_ACCOUNT_TYPE = "Standard_LRS"
 PG_PRIVATE_DNS_ZONE = "privatelink.postgres.database.azure.com"
+PG_DNS_LOCATION = "global"
 PG_SUBNET_PREFIX = "10.0.2.0/24"
 NETWORK_MODE = "private_vnet"
+
+# Base provisioned IOPS and throughput (MB/s) per Premium SSD performance tier.
+_PREMIUM_DISK_PERF: dict[str, tuple[int, int]] = {
+    "P1": (120, 25),
+    "P2": (120, 25),
+    "P3": (120, 25),
+    "P4": (120, 25),
+    "P6": (240, 50),
+    "P10": (500, 100),
+    "P15": (1100, 125),
+    "P20": (2300, 150),
+    "P30": (5000, 200),
+    "P40": (7500, 250),
+    "P50": (7500, 250),
+    "P60": (16000, 500),
+    "P70": (18000, 750),
+    "P80": (20000, 900),
+}
+
+
+def _pg_storage_args(md) -> StorageArgs:
+    """Build Flexible Server storage args for Premium_LRS vs PremiumV2_LRS."""
+    if md.storage_type in {"PremiumV2_LRS", "UltraSSD_LRS"}:
+        iops, throughput = _PREMIUM_DISK_PERF[md.storage_iops_tier]
+        return StorageArgs(
+            storage_size_gb=md.storage_gib,
+            type=md.storage_type,
+            iops=iops,
+            throughput=throughput,
+        )
+    return StorageArgs(
+        storage_size_gb=md.storage_gib,
+        type=md.storage_type or "Premium_LRS",
+        tier=md.storage_iops_tier,
+    )
 
 
 def _random_password(length: int = 24) -> str:
@@ -82,7 +118,7 @@ def export_dbaas_stack(
     pulumi.export("engine_version", md.engine_version)
     pulumi.export("ha_mode", md.ha_mode)
     pulumi.export("storage_gib", storage_gib)
-    pulumi.export("storage_edition", md.storage_type)
+    pulumi.export("storage_edition", md.storage_edition)
     pulumi.export("iops_tier", md.storage_iops_tier)
     pulumi.export("network_mode", NETWORK_MODE)
     for key, value in spec.extra_exports.items():
@@ -130,13 +166,14 @@ def resources_azure_dbaas(
         f"{slug}-pg-dns",
         resource_group_name=resource_group.name,
         private_zone_name=PG_PRIVATE_DNS_ZONE,
-        location="global",
+        location=PG_DNS_LOCATION,
         tags=tags,
     )
     VirtualNetworkLink(
         f"{slug}-pg-dns-link",
         resource_group_name=resource_group.name,
         private_zone_name=private_zone.name,
+        location=PG_DNS_LOCATION,
         virtual_network=SubResourceArgs(id=vnet.id),
         registration_enabled=False,
         virtual_network_link_name=f"{slug}-vnet-link",
@@ -173,11 +210,7 @@ def resources_azure_dbaas(
         server_name=server_name,
         version=md.engine_version,
         sku=SkuArgs(name=md.sku_name, tier=md.sku_tier),
-        storage=StorageArgs(
-            storage_size_gb=md.storage_gib,
-            type=md.storage_type,
-            tier=md.storage_iops_tier,
-        ),
+        storage=_pg_storage_args(md),
         administrator_login=md.admin_login,
         administrator_login_password=admin_password,
         availability_zone=zone,
@@ -222,6 +255,17 @@ def resources_azure_dbaas(
         tags=tags,
     )
 
+    default_bindings = {
+        "SC_DB_HOST": ("db", "fqdn"),
+        "SC_DB_PASSWORD": ("db", "password"),
+    }
+    if dbaas.client_user_data_b64 and not (
+        dbaas.client_user_data_bindings or dbaas.client_user_data_template
+    ):
+        client_bindings: dict[str, tuple[str, str]] = {}
+    else:
+        client_bindings = dbaas.client_user_data_bindings or default_bindings
+
     client_vm_spec = VmSpec(
         role="client",
         instance=dbaas.client_instance,
@@ -230,11 +274,7 @@ def resources_azure_dbaas(
         user_data_b64=dbaas.client_user_data_b64,
         user_data_template=dbaas.client_user_data_template,
         user_data_static=dbaas.client_user_data_static,
-        user_data_bindings=dbaas.client_user_data_bindings
-        or {
-            "SC_DB_HOST": ("db", "fqdn"),
-            "SC_DB_PASSWORD": ("db", "password"),
-        },
+        user_data_bindings=client_bindings,
     )
     db_sources = {
         ("db", "fqdn"): pg_server.fully_qualified_domain_name,
