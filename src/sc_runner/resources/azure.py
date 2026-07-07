@@ -1,6 +1,8 @@
 from .. import DefaultOpt, JSON
 from .. import data
 from .base import StackName, default, defaults
+from .azure_dbaas import resources_azure_dbaas
+from .managed_db import DbaasStackSpec
 from .multi_vm import MultiVmStackSpec, build_server_user_data_b64, export_multi_vm_stack
 from typing import Annotated
 import click
@@ -55,6 +57,7 @@ def resources_azure(
         image_sku: Annotated[str, DefaultOpt(["--image-sku"], type=str, help="VM Image SKU (auto-detected for ARM64 instances)")] = os.environ.get("AZURE_IMAGE_SKU", None),
         image_version: Annotated[str, DefaultOpt(["--image-version"], type=str, help="VM Image version")] = os.environ.get("AZURE_IMAGE_VERSION", "latest"),
         instance: Annotated[str, DefaultOpt(["--instance"], type=click.Choice(data.servers("azure")), help="Instance type"), StackName()] = os.environ.get("INSTANCE_TYPE", "Standard_DS1_v2"),
+        dbaas_slug: Annotated[str | None, DefaultOpt(["--dbaas-slug"], type=str, help="DBaaS stack slug (cache-tier provision)"), StackName()] = os.environ.get("DBAAS_SLUG", None),
         public_key: Annotated[str, DefaultOpt(["--public-key"], type=str, help="SSH public key")] = os.environ.get("SSH_PUBLIC_KEY", ""),
         tags: Annotated[str, DefaultOpt(["--tags"], type=JSON, default=defaults(DEFAULTS, "tags"), help="Tags for created resources")] = default(DEFAULTS, "tags"),
         vnet_opts: Annotated[str, DefaultOpt(["--vnet-opts"], type=JSON, default=defaults(DEFAULTS, "vnet_opts"), help="Pulumi azure-native.network.VirtualNetwork options")] = default(DEFAULTS, "vnet_opts"),
@@ -63,7 +66,23 @@ def resources_azure(
         user_data: Annotated[str | None, DefaultOpt(["--user-data"], type=str, help="Base64 encoded string with user_data script to run at boot")] = os.environ.get("USER_DATA", None),
         disk_size: Annotated[int, DefaultOpt(["--disk-size"], type=int, help="Boot disk size in GiBs")] = int(os.environ.get("DISK_SIZE", 30)),
         multi_vm: MultiVmStackSpec | None = None,
+        dbaas: DbaasStackSpec | None = None,
 ):
+    if dbaas is not None:
+        return resources_azure_dbaas(
+            region=region,
+            zone=zone,
+            image_publisher=image_publisher,
+            image_offer=image_offer,
+            image_sku=image_sku,
+            image_version=image_version,
+            public_key=public_key,
+            tags=tags,
+            vnet_opts=vnet_opts,
+            subnet_opts=subnet_opts,
+            publicip_opts=publicip_opts,
+            dbaas=dbaas,
+        )
     if multi_vm is not None:
         return resources_azure_multi(
             region=region,
