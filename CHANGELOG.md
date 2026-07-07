@@ -1,3 +1,9 @@
+# v0.0.53 (2026-07-07)
+
+- Add Azure DBaaS stack provisioning: `ManagedDbSpec` / `DbaasStackSpec` plus `resources_azure_dbaas()` provisions Azure Flexible Server for Postgres and a companion benchmark VM in one Pulumi stack
+- Azure DBaaS uses a private VNet with delegated Postgres subnet, private DNS zone, and no public firewall rules; stack exports `db_fqdn`, credentials, and client IPs for sc-inspector user-data
+- Azure `resources_azure()` dispatches `dbaas=` stacks via `dbaas_slug` in the stack name for per-cache-tier provisioning
+
 # v0.0.52 (2026-07-06)
 
 - `VmSpec`: add generic optional per-VM storage knobs (`disk_type`, `disk_iops`, `disk_throughput`) honored by the AWS, Azure, and GCP multi-VM stacks; when unset the provider default is used. `MultiVmStackSpec.two_vm` exposes `primary_disk_*` / `client_disk_type` so callers can pick a storage tier without any benchmark-specific defaults living in sc-runner
