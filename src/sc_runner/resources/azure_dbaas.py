@@ -66,10 +66,28 @@ _PREMIUM_DISK_PERF: dict[str, tuple[int, int]] = {
 }
 
 
+def _premium_v2_max_iops(storage_gib: int) -> int:
+    """Max provisionable IOPS for Premium SSD v2 at a given size (Azure rules)."""
+    if storage_gib <= 6:
+        return 3000
+    return min(80000, 3000 + 500 * (storage_gib - 6))
+
+
+def _premium_v2_iops_throughput(storage_gib: int, iops_tier: str) -> tuple[int, int]:
+    """Map P-tier target to valid PremiumV2_LRS IOPS/throughput for disk size."""
+    target_iops, target_throughput = _PREMIUM_DISK_PERF[iops_tier]
+    max_iops = _premium_v2_max_iops(storage_gib)
+    iops = max(3000, min(target_iops, max_iops))
+    # Azure PG PremiumV2: 3000 IOPS / 125 MB/s baseline; +0.0375 MB/s per IOPS above 3k.
+    throughput = 125 + int(max(0, iops - 3000) * 0.0375)
+    throughput = max(125, min(target_throughput, throughput))
+    return iops, throughput
+
+
 def _pg_storage_args(md) -> StorageArgs:
     """Build Flexible Server storage args for Premium_LRS vs PremiumV2_LRS."""
     if md.storage_type in {"PremiumV2_LRS", "UltraSSD_LRS"}:
-        iops, throughput = _PREMIUM_DISK_PERF[md.storage_iops_tier]
+        iops, throughput = _premium_v2_iops_throughput(md.storage_gib, md.storage_iops_tier)
         return StorageArgs(
             storage_size_gb=md.storage_gib,
             type=md.storage_type,

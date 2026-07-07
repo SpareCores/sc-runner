@@ -1,3 +1,7 @@
+# v0.0.55 (2026-07-08)
+
+- Azure DBaaS: clamp PremiumV2 IOPS/throughput to Azure-valid ranges (minimum 3000 IOPS / 125 MB/s; size-based maximum)
+
 # v0.0.54 (2026-07-08)
 
 - Azure DBaaS: fix private DNS zone and VNet link `location` to `global` so Postgres private-link stacks deploy reliably
