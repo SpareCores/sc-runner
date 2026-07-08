@@ -1,3 +1,7 @@
+# v0.0.56 (2026-07-08)
+
+- Azure DBaaS: export `db_admin_password` as a Pulumi secret so stack updates do not print credentials in CI logs
+
 # v0.0.55 (2026-07-08)
 
 - Azure DBaaS: clamp PremiumV2 IOPS/throughput to Azure-valid ranges (minimum 3000 IOPS / 125 MB/s; size-based maximum)

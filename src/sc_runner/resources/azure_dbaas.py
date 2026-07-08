@@ -130,7 +130,7 @@ def export_dbaas_stack(
     pulumi.export("db_fqdn", db_fqdn)
     pulumi.export("db_port", db_port)
     pulumi.export("db_admin_login", db_admin_login)
-    pulumi.export("db_admin_password", db_admin_password)
+    pulumi.export("db_admin_password", pulumi.Output.secret(db_admin_password))
     pulumi.export("db_name", md.database_name)
     pulumi.export("native_id", md.native_id)
     pulumi.export("engine_version", md.engine_version)
