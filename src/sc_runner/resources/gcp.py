@@ -13,6 +13,8 @@ import os
 import pulumi
 import pulumi_gcp as gcp
 
+from .gcp_project import gcp_project_id
+
 
 DEFAULTS = {
     "instance_opts": ("GCP_INSTANCE_OPTS", dict(labels={"created-by": "sc-runner"})),
@@ -20,6 +22,10 @@ DEFAULTS = {
     "bootdisk_init_opts": ("GCP_BOOTDISK_INIT_OPTS", dict(image="ubuntu-2404-lts-amd64")),
     "scheduling_opts": ("GCP_SCHEDULING_OPTS", dict()),
 }
+
+
+def _gcp_provider(zone: str) -> gcp.Provider:
+    return gcp.Provider(resource_name=zone, zone=zone, project=gcp_project_id())
 
 def resources_gcp(
         zone: Annotated[str, DefaultOpt(["--zone"], type=click.Choice(data.zones("gcp")), help="Availability zone"), StackName()] = os.environ.get("GCP_ZONE", "us-east1-d"),
@@ -65,10 +71,7 @@ def resources_gcp(
     if disk_size:
         bootdisk_init_opts["size"] = disk_size
 
-    provider = gcp.Provider(
-        resource_name=zone,
-        zone=zone,
-    )
+    provider = _gcp_provider(zone)
     if public_key:
         if "metadata" in instance_opts:
             instance_opts["metadata"]["ssh-keys"] = f"ubuntu:{public_key}"
@@ -107,7 +110,7 @@ def resources_gcp_multi(
     scheduling_opts: dict,
     multi_vm: MultiVmStackSpec,
 ):
-    provider = gcp.Provider(resource_name=zone, zone=zone)
+    provider = _gcp_provider(zone)
     region = "-".join(zone.split("-")[:-1])
 
     network = gcp.compute.Network(

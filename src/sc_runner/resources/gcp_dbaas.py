@@ -12,6 +12,7 @@ import pulumi
 import pulumi_gcp as gcp
 
 from .azure_dbaas import export_dbaas_stack
+from .gcp_project import gcp_project_id
 from .managed_db import DbaasStackSpec
 from .multi_vm import VmSpec, build_user_data_b64
 
@@ -57,7 +58,8 @@ def resources_gcp_dbaas(
     md = dbaas.managed_db
     slug = dbaas.instance_key_slug or "dbaas"
     region = "-".join(zone.split("-")[:-1])
-    provider = gcp.Provider(resource_name=zone, zone=zone)
+    project = gcp_project_id()
+    provider = gcp.Provider(resource_name=zone, zone=zone, project=project)
 
     network = gcp.compute.Network(
         slug,
@@ -113,6 +115,7 @@ def resources_gcp_dbaas(
     pg_instance = gcp.sql.DatabaseInstance(
         instance_name,
         name=instance_name,
+        project=project,
         database_version=_postgres_version(md.engine_version),
         region=region,
         deletion_protection=False,
@@ -140,6 +143,7 @@ def resources_gcp_dbaas(
     gcp.sql.Database(
         f"{instance_name}-db",
         instance=pg_instance.name,
+        project=project,
         name=md.database_name,
         charset="UTF8",
         collation="en_US.UTF8",
@@ -149,6 +153,7 @@ def resources_gcp_dbaas(
     gcp.sql.User(
         f"{instance_name}-admin",
         instance=pg_instance.name,
+        project=project,
         name=md.admin_login,
         password=admin_password,
         type="BUILT_IN",

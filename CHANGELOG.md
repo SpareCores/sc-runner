@@ -1,3 +1,7 @@
+# v0.0.59 (2026-07-08)
+
+- GCP: resolve lowercase `project_id` for Pulumi provider and Cloud SQL (reject numeric project numbers / display names; fall back to `GOOGLE_CREDENTIALS.project_id`)
+
 # v0.0.58 (2026-07-08)
 
 - Ship `gcp_dbaas.py`: Cloud SQL Postgres + PSA private-IP networking and companion client VM stack (fixes broken `gcp_dbaas` import in 0.0.57)
