@@ -1,6 +1,10 @@
+# v0.0.58 (2026-07-08)
+
+- Ship `gcp_dbaas.py`: Cloud SQL Postgres + PSA private-IP networking and companion client VM stack (fixes broken `gcp_dbaas` import in 0.0.57)
+
 # v0.0.57 (2026-07-08)
 
-- Add support for GCP DBaaS
+- Add GCP DBaaS dispatch in `resources_gcp()` (`dbaas_slug` stack name segment)
 
 # v0.0.56 (2026-07-08)
 
