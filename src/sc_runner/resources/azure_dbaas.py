@@ -118,6 +118,7 @@ def export_dbaas_stack(
     client_private_ip: pulumi.Input[str],
     client_public_ip: pulumi.Input[str],
     storage_gib: int,
+    network_mode: str = NETWORK_MODE,
 ) -> None:
     """Export stack outputs consumed by sc-inspector user-data."""
     md = spec.managed_db
@@ -138,7 +139,7 @@ def export_dbaas_stack(
     pulumi.export("storage_gib", storage_gib)
     pulumi.export("storage_edition", md.storage_edition)
     pulumi.export("iops_tier", md.storage_iops_tier)
-    pulumi.export("network_mode", NETWORK_MODE)
+    pulumi.export("network_mode", network_mode)
     for key, value in spec.extra_exports.items():
         pulumi.export(key, value)
 

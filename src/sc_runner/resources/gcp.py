@@ -3,6 +3,8 @@ import base64
 from .. import DefaultOpt, JSON
 from .. import data
 from .base import StackName, default, defaults
+from .gcp_dbaas import resources_gcp_dbaas
+from .managed_db import DbaasStackSpec
 from .multi_vm import MultiVmStackSpec, build_server_user_data_b64, export_multi_vm_stack
 from typing import Annotated
 import click
@@ -22,6 +24,7 @@ DEFAULTS = {
 def resources_gcp(
         zone: Annotated[str, DefaultOpt(["--zone"], type=click.Choice(data.zones("gcp")), help="Availability zone"), StackName()] = os.environ.get("GCP_ZONE", "us-east1-d"),
         instance: Annotated[str, DefaultOpt(["--instance"], type=click.Choice(data.servers("gcp")), help="Instance type"), StackName()] = os.environ.get("INSTANCE_TYPE", "e2-micro"),
+        dbaas_slug: Annotated[str | None, DefaultOpt(["--dbaas-slug"], type=str, help="DBaaS stack slug (cache-tier provision)"), StackName()] = os.environ.get("DBAAS_SLUG", None),
         public_key: Annotated[str, DefaultOpt(["--public-key"], type=str, help="SSH public key")] = os.environ.get("SSH_PUBLIC_KEY", ""),
         instance_opts: Annotated[str, DefaultOpt(["--instance-opts"], type=JSON, default=defaults(DEFAULTS, "instance_opts"), help="Pulumi gcp.compute.Instance options")] = default(DEFAULTS, "instance_opts"),
         bootdisk_opts: Annotated[str, DefaultOpt(["--bootdisk-opts"], type=JSON, default=defaults(DEFAULTS, "bootdisk_opts"), help="Pulumi gcp.compute.InstanceBootDiskArgs options")] = default(DEFAULTS, "bootdisk_opts"),
@@ -30,7 +33,18 @@ def resources_gcp(
         user_data: Annotated[str | None, DefaultOpt(["--user-data"], type=str, help="Base64 encoded string with user_data script to run at boot")] = os.environ.get("USER_DATA", None),
         disk_size: Annotated[int, DefaultOpt(["--disk-size"], type=int, help="Boot disk size in GiBs")] = int(os.environ.get("DISK_SIZE", 30)),
         multi_vm: MultiVmStackSpec | None = None,
+        dbaas: DbaasStackSpec | None = None,
 ):
+    if dbaas is not None:
+        return resources_gcp_dbaas(
+            zone=zone,
+            public_key=public_key,
+            instance_opts=instance_opts,
+            bootdisk_opts=bootdisk_opts,
+            bootdisk_init_opts=bootdisk_init_opts,
+            scheduling_opts=scheduling_opts,
+            dbaas=dbaas,
+        )
     if multi_vm is not None:
         return resources_gcp_multi(
             zone=zone,

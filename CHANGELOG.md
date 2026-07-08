@@ -1,3 +1,7 @@
+# v0.0.57 (2026-07-08)
+
+- Add support for GCP DBaaS
+
 # v0.0.56 (2026-07-08)
 
 - Azure DBaaS: export `db_admin_password` as a Pulumi secret so stack updates do not print credentials in CI logs
