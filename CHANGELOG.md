@@ -1,3 +1,7 @@
+# v0.0.60 (2026-07-08)
+
+- Fix broken 0.0.59 release: include missing `gcp_project.py` module (fixes `ModuleNotFoundError` on import)
+
 # v0.0.59 (2026-07-08)
 
 - GCP: resolve lowercase `project_id` for Pulumi provider and Cloud SQL (reject numeric project numbers / display names; fall back to `GOOGLE_CREDENTIALS.project_id`)
