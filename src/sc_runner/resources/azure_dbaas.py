@@ -20,7 +20,7 @@ from pulumi_azure_native.compute import (
     StorageProfileArgs,
     VirtualMachine,
 )
-from pulumi_azure_native.dbforpostgresql import Database, Server
+from pulumi_azure_native.dbforpostgresql import Server
 from pulumi_azure_native.dbforpostgresql._inputs import NetworkArgs, SkuArgs, StorageArgs
 from pulumi_azure_native.network import (
     DelegationArgs,
@@ -115,6 +115,8 @@ def export_dbaas_stack(
     db_port: int,
     db_admin_login: str,
     db_admin_password: pulumi.Input[str],
+    db_bootstrap_login: str,
+    db_bootstrap_database: str,
     client_private_ip: pulumi.Input[str],
     client_public_ip: pulumi.Input[str],
     storage_gib: int,
@@ -130,6 +132,8 @@ def export_dbaas_stack(
     pulumi.export("client_public_ip", client_public_ip)
     pulumi.export("db_fqdn", db_fqdn)
     pulumi.export("db_port", db_port)
+    pulumi.export("db_bootstrap_login", db_bootstrap_login)
+    pulumi.export("db_bootstrap_database", db_bootstrap_database)
     pulumi.export("db_admin_login", db_admin_login)
     pulumi.export("db_admin_password", pulumi.Output.secret(db_admin_password))
     pulumi.export("db_name", md.database_name)
@@ -239,16 +243,6 @@ def resources_azure_dbaas(
         ),
         tags=tags,
         opts=pulumi.ResourceOptions(depends_on=[pg_subnet, private_zone]),
-    )
-
-    Database(
-        f"{server_name}-db",
-        resource_group_name=resource_group.name,
-        server_name=pg_server.name,
-        database_name=md.database_name,
-        charset="UTF8",
-        collation="en_US.utf8",
-        opts=pulumi.ResourceOptions(depends_on=[pg_server]),
     )
 
     client_name = f"{dbaas.client_instance}-client"
@@ -366,6 +360,8 @@ def resources_azure_dbaas(
         zones=zones,
         db_fqdn=pg_server.fully_qualified_domain_name,
         db_port=5432,
+        db_bootstrap_login=md.admin_login,
+        db_bootstrap_database="postgres",
         db_admin_login=md.admin_login,
         db_admin_password=admin_password,
         client_private_ip=client_private_ip,

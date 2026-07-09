@@ -22,7 +22,7 @@ class ManagedDbSpec:
     storage_iops_tier: str = "P30"
     admin_login: str = "scadmin"
     admin_password: str = ""
-    database_name: str = "bench"
+    database_name: str = "bench"  # created by sc-inspector bootstrap, not Pulumi
 
 
 @dataclass

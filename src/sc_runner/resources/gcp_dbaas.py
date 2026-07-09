@@ -140,27 +140,6 @@ def resources_gcp_dbaas(
         ),
     )
 
-    gcp.sql.Database(
-        f"{instance_name}-db",
-        instance=pg_instance.name,
-        project=project,
-        name=md.database_name,
-        charset="UTF8",
-        collation="en_US.UTF8",
-        opts=pulumi.ResourceOptions(provider=provider, depends_on=[pg_instance]),
-    )
-
-    gcp.sql.User(
-        f"{instance_name}-admin",
-        instance=pg_instance.name,
-        project=project,
-        name=md.admin_login,
-        password=admin_password,
-        type="BUILT_IN",
-        database_roles=["cloudsqlsuperuser"],
-        opts=pulumi.ResourceOptions(provider=provider, depends_on=[pg_instance]),
-    )
-
     default_bindings = {
         "SC_DB_HOST": ("db", "fqdn"),
         "SC_DB_PASSWORD": ("db", "password"),
@@ -235,6 +214,8 @@ def resources_gcp_dbaas(
         zones=[zone],
         db_fqdn=pg_instance.private_ip_address,
         db_port=5432,
+        db_bootstrap_login="postgres",
+        db_bootstrap_database="postgres",
         db_admin_login=md.admin_login,
         db_admin_password=pulumi.Output.secret(admin_password),
         client_private_ip=client_private_ip,
