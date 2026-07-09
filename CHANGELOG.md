@@ -1,3 +1,7 @@
+# v0.0.62 (2026-07-09)
+
+- Fix Azure import: use `get_client_config_output` from `pulumi_azure_native.authorization` (fixes `ModuleNotFoundError: No module named 'pulumi_azure_native.core'` on `inspector.py start`)
+
 # v0.0.61 (2026-07-09)
 
 - DBaaS: provision empty managed Postgres instances only; database and workload users are bootstrapped by sc-inspector (Azure and GCP)

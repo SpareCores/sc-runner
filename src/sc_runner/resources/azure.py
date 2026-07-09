@@ -26,7 +26,7 @@ from pulumi_azure_native.compute import (
     StorageProfileArgs,
     VirtualMachine,
 )
-from pulumi_azure_native.core import get_client_config
+from pulumi_azure_native.authorization import get_client_config_output
 from pulumi_azure_native.network import (
     IPAllocationMethod,
     NetworkInterface,
@@ -121,8 +121,7 @@ def _provisioned_premium_v2_os_disk(
 ) -> OSDiskArgs:
     """Create a PremiumV2 OS disk with explicit IOPS/throughput, then attach to the VM."""
     iops, throughput = _clamp_premium_v2_perf(disk_gib, disk_iops, disk_throughput)
-    client = get_client_config()
-    image_id = pulumi.Output.from_input(client.subscription_id).apply(
+    image_id = get_client_config_output().subscription_id.apply(
         lambda sid: _platform_image_reference_id(
             sid,
             region,
