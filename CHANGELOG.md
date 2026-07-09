@@ -1,3 +1,9 @@
+# v0.0.61 (2026-07-09)
+
+- DBaaS: provision empty managed Postgres instances only; database and workload users are bootstrapped by sc-inspector (Azure and GCP)
+- Azure multi-VM: support `PremiumV2_LRS` / `UltraSSD_LRS` DB host OS disks with provisioned IOPS and throughput when requested; export `db_disk_type`, `db_disk_iops`, and `db_disk_throughput` from multi-VM stacks
+- Remove bundled unit tests under `tests/`
+
 # v0.0.60 (2026-07-08)
 
 - Fix broken 0.0.59 release: include missing `gcp_project.py` module (fixes `ModuleNotFoundError` on import)
