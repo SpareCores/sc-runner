@@ -251,6 +251,9 @@ def export_multi_vm_stack(
     zones: pulumi.Input[list[str]],
     provisioned_disk_gib: int,
     client_disk_gib: int,
+    db_disk_type: str | None = None,
+    db_disk_iops: int | None = None,
+    db_disk_throughput: int | None = None,
 ) -> None:
     """Export stack outputs for a two-VM client/db topology."""
     vms = {
@@ -273,6 +276,9 @@ def export_multi_vm_stack(
         extra_exports={
             "provisioned_disk_gib": provisioned_disk_gib,
             "client_disk_gib": client_disk_gib,
+            "db_disk_type": db_disk_type,
+            "db_disk_iops": db_disk_iops,
+            "db_disk_throughput": db_disk_throughput,
         },
     )
 

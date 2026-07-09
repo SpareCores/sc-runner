@@ -9,7 +9,11 @@ import click
 import os
 import pulumi
 from pulumi_azure_native.compute import (
+    CreationDataArgs,
+    Disk,
+    DiskSkuArgs,
     HardwareProfileArgs,
+    ImageDiskReferenceArgs,
     ImageReferenceArgs,
     LinuxConfigurationArgs,
     ManagedDiskParametersArgs,
@@ -22,6 +26,7 @@ from pulumi_azure_native.compute import (
     StorageProfileArgs,
     VirtualMachine,
 )
+from pulumi_azure_native.core import get_client_config
 from pulumi_azure_native.network import (
     IPAllocationMethod,
     NetworkInterface,
@@ -46,6 +51,157 @@ DEFAULTS = {
 
 # Default managed-disk tier when a VM does not request a specific one.
 DEFAULT_STORAGE_ACCOUNT_TYPE = "Standard_LRS"
+_PREMIUM_V2_DISK_TYPES = frozenset({"PremiumV2_LRS", "UltraSSD_LRS"})
+
+
+def _premium_v2_max_iops(storage_gib: int) -> int:
+    if storage_gib <= 6:
+        return 3000
+    return min(80000, 3000 + 500 * (storage_gib - 6))
+
+
+def _clamp_premium_v2_perf(
+    storage_gib: int,
+    disk_iops: int | None,
+    disk_throughput: int | None,
+) -> tuple[int, int]:
+    iops = disk_iops or 5000
+    throughput = disk_throughput or 200
+    max_iops = _premium_v2_max_iops(storage_gib)
+    iops = max(3000, min(iops, max_iops))
+    throughput = max(125, min(throughput, 125 + int(max(0, iops - 3000) * 0.0375)))
+    return iops, throughput
+
+
+def _platform_image_reference_id(
+    subscription_id: str,
+    region: str,
+    publisher: str,
+    offer: str,
+    sku: str,
+    version: str,
+) -> str:
+    return (
+        f"/Subscriptions/{subscription_id}/Providers/Microsoft.Compute/Locations/{region}"
+        f"/Publishers/{publisher}/ArtifactTypes/VMImage/Offers/{offer}/Skus/{sku}/Versions/{version}"
+    )
+
+
+def _os_disk_from_image(
+    *,
+    disk_gib: int,
+    disk_type: str | None,
+) -> OSDiskArgs:
+    return OSDiskArgs(
+        create_option="FromImage",
+        managed_disk=ManagedDiskParametersArgs(
+            storage_account_type=disk_type or DEFAULT_STORAGE_ACCOUNT_TYPE
+        ),
+        caching="ReadWrite",
+        disk_size_gb=disk_gib,
+    )
+
+
+def _provisioned_premium_v2_os_disk(
+    *,
+    name: str,
+    resource_group_name: pulumi.Input[str],
+    location: pulumi.Input[str],
+    disk_gib: int,
+    disk_type: str,
+    disk_iops: int | None,
+    disk_throughput: int | None,
+    region: str,
+    image_publisher: str,
+    image_offer: str,
+    image_sku: str,
+    image_version: str,
+    zone: str | None,
+    tags: dict,
+) -> OSDiskArgs:
+    """Create a PremiumV2 OS disk with explicit IOPS/throughput, then attach to the VM."""
+    iops, throughput = _clamp_premium_v2_perf(disk_gib, disk_iops, disk_throughput)
+    client = get_client_config()
+    image_id = pulumi.Output.from_input(client.subscription_id).apply(
+        lambda sid: _platform_image_reference_id(
+            sid,
+            region,
+            image_publisher,
+            image_offer,
+            image_sku,
+            image_version,
+        )
+    )
+    disk_opts: dict = {}
+    if zone is not None:
+        disk_opts["zones"] = [zone]
+    disk = Disk(
+        name,
+        resource_group_name=resource_group_name,
+        location=location,
+        disk_name=name,
+        disk_size_gb=disk_gib,
+        os_type="Linux",
+        creation_data=CreationDataArgs(
+            create_option="FromImage",
+            image_reference=ImageDiskReferenceArgs(id=image_id),
+        ),
+        sku=DiskSkuArgs(name=disk_type),
+        disk_iops_read_write=iops,
+        disk_m_bps_read_write=throughput,
+        tags=tags,
+        **disk_opts,
+    )
+    return OSDiskArgs(
+        create_option="Attach",
+        managed_disk=ManagedDiskParametersArgs(id=disk.id),
+        caching="ReadWrite",
+        disk_size_gb=disk_gib,
+    )
+
+
+def _server_os_disk(
+    *,
+    server_name: str,
+    resource_group_name: pulumi.Input[str],
+    location: pulumi.Input[str],
+    disk_gib: int,
+    disk_type: str | None,
+    disk_iops: int | None,
+    disk_throughput: int | None,
+    region: str,
+    image_publisher: str,
+    image_offer: str,
+    image_sku: str,
+    image_version: str,
+    zone: str | None,
+    tags: dict,
+) -> tuple[OSDiskArgs, bool]:
+    if (
+        disk_type in _PREMIUM_V2_DISK_TYPES
+        and (disk_iops or disk_throughput)
+        and image_version != "latest"
+    ):
+        return (
+            _provisioned_premium_v2_os_disk(
+                name=f"{server_name}-os",
+                resource_group_name=resource_group_name,
+                location=location,
+                disk_gib=disk_gib,
+                disk_type=disk_type,
+                disk_iops=disk_iops,
+                disk_throughput=disk_throughput,
+                region=region,
+                image_publisher=image_publisher,
+                image_offer=image_offer,
+                image_sku=image_sku,
+                image_version=image_version,
+                zone=zone,
+                tags=tags,
+            ),
+            True,
+        )
+    return _os_disk_from_image(disk_gib=disk_gib, disk_type=disk_type), False
 
 def resources_azure(
         region: Annotated[str, DefaultOpt(["--region"], type=click.Choice(data.regions("azure")), help="Region"), StackName()] = os.environ.get("AZURE_REGION", "westeurope"),
@@ -314,6 +470,35 @@ def resources_azure_multi(
     )
     server_user_data_b64 = build_server_user_data_b64(multi_vm, client_private_ip)
 
+    server_os_disk, attach_os_disk = _server_os_disk(
+        server_name=server_name,
+        resource_group_name=resource_group.name,
+        location=resource_group.location,
+        disk_gib=multi_vm.db_disk_gib,
+        disk_type=multi_vm.db_disk_type,
+        disk_iops=multi_vm.db_disk_iops,
+        disk_throughput=multi_vm.db_disk_throughput,
+        region=region,
+        image_publisher=image_publisher,
+        image_offer=image_offer,
+        image_sku=image_sku,
+        image_version=image_version,
+        zone=zone,
+        tags=tags,
+    )
+    if attach_os_disk:
+        server_storage_profile = StorageProfileArgs(os_disk=server_os_disk)
+    else:
+        server_storage_profile = StorageProfileArgs(
+            os_disk=server_os_disk,
+            image_reference=ImageReferenceArgs(
+                publisher=image_publisher,
+                offer=image_offer,
+                sku=image_sku,
+                version=image_version,
+            ),
+        )
+
     server_public_ip = PublicIPAddress(
         server_name,
         resource_group_name=resource_group.name,
@@ -358,22 +543,7 @@ def resources_azure_multi(
             ),
             custom_data=server_user_data_b64,
         ),
-        storage_profile=StorageProfileArgs(
-            os_disk=OSDiskArgs(
-                create_option="FromImage",
-                managed_disk=ManagedDiskParametersArgs(
-                    storage_account_type=multi_vm.db_disk_type or DEFAULT_STORAGE_ACCOUNT_TYPE
-                ),
-                caching="ReadWrite",
-                disk_size_gb=multi_vm.db_disk_gib,
-            ),
-            image_reference=ImageReferenceArgs(
-                publisher=image_publisher,
-                offer=image_offer,
-                sku=image_sku,
-                version=image_version,
-            ),
-        ),
+        storage_profile=server_storage_profile,
         tags=tags,
     )
     if zone is not None:
@@ -396,4 +566,7 @@ def resources_azure_multi(
         zones=zones,
         provisioned_disk_gib=multi_vm.db_disk_gib,
         client_disk_gib=multi_vm.client_disk_gib,
+        db_disk_type=multi_vm.db_disk_type,
+        db_disk_iops=multi_vm.db_disk_iops,
+        db_disk_throughput=multi_vm.db_disk_throughput,
     )
