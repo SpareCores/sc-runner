@@ -147,11 +147,15 @@ class MultiVmStackSpec:
 
 def render_user_data(template: str, replacements: dict[str, Any]) -> str:
     """Substitute {PLACEHOLDER} tokens in a user-data shell script template."""
+    keys = [key for key in replacements if key not in _TEMPLATE_META_KEYS]
     rendered = template
-    for key, value in replacements.items():
-        if key in _TEMPLATE_META_KEYS:
-            continue
-        rendered = rendered.replace("{" + key + "}", str(value))
+    # Repeat until stable: later keys may inject placeholders resolved by earlier keys.
+    while True:
+        previous = rendered
+        for key in keys:
+            rendered = rendered.replace("{" + key + "}", str(replacements[key]))
+        if rendered == previous:
+            break
     return rendered
 
 
