@@ -21,7 +21,8 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  # GHCR image paths must be lowercase; github.repository is SpareCores/sc-runner.
+  IMAGE_NAME: sparecores/sc-runner
   IMAGE_OUTPUT: type=registry,push=true,oci-mediatypes=true,compression=zstd,compression-level=7,force-compression=true
 
 jobs:
