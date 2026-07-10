@@ -1,3 +1,7 @@
+# v0.0.64 (2026-07-10)
+
+- Fix `render_user_data()` placeholder substitution when replacement values reference other keys (repeat until stable so DBaaS bootstrap passwords are not left as unresolved `{SC_DB_PASSWORD}` literals)
+
 # v0.0.63 (2026-07-10)
 
 - GCP DBaaS: set `deletion_policy="ABANDON"` on the private-service-access `servicenetworking.Connection` so stack destroy no longer fails with "producer services (Cloud SQL) are still using this connection" (Cloud SQL releases the PSA peering asynchronously; the peering is cleaned up with the VPC network)
