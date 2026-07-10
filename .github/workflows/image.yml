@@ -35,13 +35,7 @@ jobs:
     steps:
       - id: resolve
         run: |
-          if [ "${{ github.event_name }}" = "workflow_call" ]; then
-            VERSION="${{ inputs.runner_version }}"
-          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            VERSION="${{ inputs.runner_version }}"
-          else
-            VERSION=""
-          fi
+          VERSION="${{ inputs.runner_version }}"
           echo "runner_version=${VERSION}" >> "$GITHUB_OUTPUT"
           if [ -n "$VERSION" ]; then
             echo "cache_suffix=-${VERSION}" >> "$GITHUB_OUTPUT"
