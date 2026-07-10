@@ -1,7 +1,9 @@
 name: Release
 
 # Push a tag matching pyproject.toml (e.g. 0.0.63) to publish PyPI, build the
-# versioned sc-runner image, and rebuild sc-inspector via a cross-repo workflow_call.
+# versioned sc-runner image, and trigger an sc-inspector image rebuild via
+# repository_dispatch (workflow_call inherits the caller GITHUB_TOKEN and cannot
+# push to the sc-inspector GHCR package).
 on:
   push:
     tags:
@@ -140,15 +142,27 @@ jobs:
     secrets: inherit
 
   inspector:
-    name: Build and publish sc-inspector image
+    name: Trigger sc-inspector image build
     needs: [version, image]
     if: >-
       always() &&
       !cancelled() &&
       needs.version.result == 'success' &&
       needs.image.result == 'success'
-    uses: SpareCores/sc-inspector/.github/workflows/push.yml@main
-    with:
-      sc_runner_version: ${{ needs.version.outputs.version }}
-      sc_runner_image_tag: ${{ needs.version.outputs.image_tag }}
-    secrets: inherit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch sc-inspector release build
+        env:
+          GH_TOKEN: ${{ secrets.REPOSITORY_DISPATCH_TOKEN }}
+          VERSION: ${{ needs.version.outputs.version }}
+          IMAGE_TAG: ${{ needs.version.outputs.image_tag }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN}" ]; then
+            echo "::error::REPOSITORY_DISPATCH_TOKEN is not configured on sc-runner (classic PAT with repo scope, or fine-grained token with Actions:write on sc-inspector)"
+            exit 1
+          fi
+          gh api --method POST repos/SpareCores/sc-inspector/dispatches \
+            -f event_type=sc-runner-release \
+            -f "client_payload[version]=${VERSION}" \
+            -f "client_payload[image_tag]=${IMAGE_TAG}"
