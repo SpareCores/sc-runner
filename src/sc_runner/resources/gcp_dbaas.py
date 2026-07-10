@@ -105,6 +105,15 @@ def resources_gcp_dbaas(
         network=network.id,
         service="servicenetworking.googleapis.com",
         reserved_peering_ranges=[psa_range.name],
+        # Cloud SQL releases the private-service-access peering asynchronously
+        # after the instance is deleted, so a synchronous connection delete
+        # fails with "producer services are still using this connection".
+        # ABANDON drops the connection from state without the failing API call;
+        # the peering itself is torn down when the owning VPC network is deleted.
+        deletion_policy="ABANDON",
+        # Reconcile an already-existing connection (e.g. left over from a prior
+        # ABANDON) instead of failing when the slug-scoped network is recreated.
+        update_on_creation_fail=True,
         opts=pulumi.ResourceOptions(provider=provider, depends_on=[psa_range]),
     )
 

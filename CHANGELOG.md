@@ -1,3 +1,8 @@
+# v0.0.63 (2026-07-10)
+
+- GCP DBaaS: set `deletion_policy="ABANDON"` on the private-service-access `servicenetworking.Connection` so stack destroy no longer fails with "producer services (Cloud SQL) are still using this connection" (Cloud SQL releases the PSA peering asynchronously; the peering is cleaned up with the VPC network)
+- GCP DBaaS: set `update_on_creation_fail=True` on the PSA connection to reconcile a leftover connection instead of failing when a slug-scoped network is recreated
+
 # v0.0.62 (2026-07-09)
 
 - Fix Azure import: use `get_client_config_output` from `pulumi_azure_native.authorization` (fixes `ModuleNotFoundError: No module named 'pulumi_azure_native.core'` on `inspector.py start`)
