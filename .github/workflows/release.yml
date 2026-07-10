@@ -104,7 +104,8 @@ jobs:
       always() &&
       needs.version.result == 'success' &&
       needs.pypi-check.result == 'success' &&
-      (needs.pypi-check.outputs.already_published == 'true' || needs.pypi-publish.result == 'success')
+      needs.pypi-check.outputs.already_published != 'true' &&
+      needs.pypi-publish.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Wait until the release is installable from PyPI
@@ -126,7 +127,13 @@ jobs:
 
   image:
     name: Build and publish sc-runner image
-    needs: [version, wait-pypi]
+    needs: [version, pypi-check, wait-pypi]
+    if: >-
+      always() &&
+      !cancelled() &&
+      needs.version.result == 'success' &&
+      needs.pypi-check.result == 'success' &&
+      (needs.pypi-check.outputs.already_published == 'true' || needs.wait-pypi.result == 'success')
     uses: ./.github/workflows/image.yml
     with:
       runner_version: ${{ needs.version.outputs.version }}
@@ -135,6 +142,11 @@ jobs:
   inspector:
     name: Build and publish sc-inspector image
     needs: [version, image]
+    if: >-
+      always() &&
+      !cancelled() &&
+      needs.version.result == 'success' &&
+      needs.image.result == 'success'
     uses: SpareCores/sc-inspector/.github/workflows/push.yml@main
     with:
       sc_runner_version: ${{ needs.version.outputs.version }}
