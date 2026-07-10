@@ -1,13 +1,45 @@
-name: Publish releases
+name: Release
 
+# Push a tag matching pyproject.toml (e.g. 0.0.63) to publish PyPI, build the
+# versioned sc-runner image, and rebuild sc-inspector via a cross-repo workflow_call.
 on:
   push:
     tags:
-      - '*'
+      - "*.*.*"
+
+permissions:
+  contents: read
+  id-token: write
+  packages: write
 
 jobs:
+  version:
+    name: Resolve version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      image_tag: ${{ steps.version.outputs.image_tag }}
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - id: version
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          if ! echo "$TAG" | grep -Eq '^v?[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Tag ${TAG} is not a semver release tag (expected e.g. 0.0.63)"
+            exit 1
+          fi
+          VERSION="${TAG#v}"
+          PYPROJECT="$(grep '^version = ' pyproject.toml | sed 's/.*"\(.*\)".*/\1/')"
+          if [ "$VERSION" != "$PYPROJECT" ]; then
+            echo "::error::Tag ${TAG} (version ${VERSION}) does not match pyproject.toml (${PYPROJECT})"
+            exit 1
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "image_tag=${TAG}" >> "$GITHUB_OUTPUT"
+
   build:
     name: Build package
+    needs: version
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2
@@ -16,11 +48,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install pypa/build
-        run: >-
-          python3 -m
-          pip install
-          build
-          --user
+        run: python3 -m pip install build --user
       - name: Build a binary wheel and a source tarball
         run: python3 -m build
       - name: Store the distribution packages
@@ -28,10 +56,10 @@ jobs:
         with:
           name: python-package-distributions
           path: dist/
+
   pypi-publish:
     name: Upload release to PyPI
-    needs:
-      - build
+    needs: build
     runs-on: ubuntu-latest
     environment:
       name: pypi
@@ -46,3 +74,42 @@ jobs:
           path: dist/
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+
+  wait-pypi:
+    name: Wait for PyPI propagation
+    needs: [version, pypi-publish]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait until the release is installable from PyPI
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 36); do
+            if curl -fsS "https://pypi.org/pypi/sparecores-runner/json" \
+              | python3 -c "import json,sys,os; releases=json.load(sys.stdin).get('releases',{}); sys.exit(0 if os.environ['VERSION'] in releases and releases[os.environ['VERSION']] else 1)"; then
+              echo "sparecores-runner==${VERSION} is available on PyPI (attempt ${attempt})"
+              exit 0
+            fi
+            echo "Waiting for PyPI propagation (attempt ${attempt}/36)..."
+            sleep 10
+          done
+          echo "::error::Timed out waiting for sparecores-runner==${VERSION} on PyPI"
+          exit 1
+
+  image:
+    name: Build and publish sc-runner image
+    needs: [version, wait-pypi]
+    uses: ./.github/workflows/image.yml
+    with:
+      runner_version: ${{ needs.version.outputs.version }}
+    secrets: inherit
+
+  inspector:
+    name: Build and publish sc-inspector image
+    needs: [version, image]
+    uses: SpareCores/sc-inspector/.github/workflows/push.yml@main
+    with:
+      sc_runner_version: ${{ needs.version.outputs.version }}
+      sc_runner_image_tag: ${{ needs.version.outputs.image_tag }}
+    secrets: inherit
