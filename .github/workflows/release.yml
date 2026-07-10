@@ -37,9 +37,30 @@ jobs:
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "image_tag=${TAG}" >> "$GITHUB_OUTPUT"
 
+  pypi-check:
+    name: Check PyPI for existing release
+    needs: version
+    runs-on: ubuntu-latest
+    outputs:
+      already_published: ${{ steps.check.outputs.already_published }}
+    steps:
+      - id: check
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          if curl -fsS "https://pypi.org/pypi/sparecores-runner/json" \
+            | python3 -c "import json,sys,os; releases=json.load(sys.stdin).get('releases',{}); sys.exit(0 if os.environ['VERSION'] in releases and releases[os.environ['VERSION']] else 1)"; then
+            echo "already_published=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::sparecores-runner==${VERSION} is already on PyPI; skipping build and upload"
+          else
+            echo "already_published=false" >> "$GITHUB_OUTPUT"
+          fi
+
   build:
     name: Build package
-    needs: version
+    needs: [version, pypi-check]
+    if: needs.pypi-check.outputs.already_published != 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2
@@ -59,7 +80,8 @@ jobs:
 
   pypi-publish:
     name: Upload release to PyPI
-    needs: build
+    needs: [version, build, pypi-check]
+    if: needs.pypi-check.outputs.already_published != 'true'
     runs-on: ubuntu-latest
     environment:
       name: pypi
@@ -77,7 +99,12 @@ jobs:
 
   wait-pypi:
     name: Wait for PyPI propagation
-    needs: [version, pypi-publish]
+    needs: [version, pypi-check, pypi-publish]
+    if: >-
+      always() &&
+      needs.version.result == 'success' &&
+      needs.pypi-check.result == 'success' &&
+      (needs.pypi-check.outputs.already_published == 'true' || needs.pypi-publish.result == 'success')
     runs-on: ubuntu-latest
     steps:
       - name: Wait until the release is installable from PyPI
