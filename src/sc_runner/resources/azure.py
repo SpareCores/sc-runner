@@ -220,6 +220,9 @@ def resources_azure(
         publicip_opts: Annotated[str, DefaultOpt(["--publicip-opts"], type=JSON, default=defaults(DEFAULTS, "publicip_opts"), help="Pulumi azure-native.network.PublicIPAddress options")] = default(DEFAULTS, "publicip_opts"),
         user_data: Annotated[str | None, DefaultOpt(["--user-data"], type=str, help="Base64 encoded string with user_data script to run at boot")] = os.environ.get("USER_DATA", None),
         disk_size: Annotated[int, DefaultOpt(["--disk-size"], type=int, help="Boot disk size in GiBs")] = int(os.environ.get("DISK_SIZE", 30)),
+        disk_type: Annotated[str | None, DefaultOpt(["--disk-type"], type=str, help="Managed OS disk storage account type (e.g. Standard_LRS, Premium_LRS, PremiumV2_LRS)")] = os.environ.get("DISK_TYPE") or None,
+        disk_iops: Annotated[int | None, DefaultOpt(["--disk-iops"], type=int, help="Provisioned OS disk IOPS (PremiumV2_LRS / UltraSSD_LRS)")] = int(os.environ["DISK_IOPS"]) if os.environ.get("DISK_IOPS") else None,
+        disk_throughput: Annotated[int | None, DefaultOpt(["--disk-throughput"], type=int, help="Provisioned OS disk throughput in MB/s (PremiumV2_LRS / UltraSSD_LRS)")] = int(os.environ["DISK_THROUGHPUT"]) if os.environ.get("DISK_THROUGHPUT") else None,
         multi_vm: MultiVmStackSpec | None = None,
         dbaas: DbaasStackSpec | None = None,
 ):
@@ -308,6 +311,35 @@ def resources_azure(
         tags=tags,
     )
 
+    os_disk, attach_os_disk = _server_os_disk(
+        server_name=instance,
+        resource_group_name=resource_group.name,
+        location=resource_group.location,
+        disk_gib=disk_size,
+        disk_type=disk_type,
+        disk_iops=disk_iops,
+        disk_throughput=disk_throughput,
+        region=region,
+        image_publisher=image_publisher,
+        image_offer=image_offer,
+        image_sku=image_sku,
+        image_version=image_version,
+        zone=zone,
+        tags=tags,
+    )
+    if attach_os_disk:
+        storage_profile = StorageProfileArgs(os_disk=os_disk)
+    else:
+        storage_profile = StorageProfileArgs(
+            os_disk=os_disk,
+            image_reference=ImageReferenceArgs(
+                publisher=image_publisher,
+                offer=image_offer,
+                sku=image_sku,
+                version=image_version,
+            ),
+        )
+
     vmopts = dict(
         resource_group_name=resource_group.name,
         location=resource_group.location,
@@ -332,27 +364,12 @@ def resources_azure(
             ),
             custom_data=user_data,
         ),
-            storage_profile=StorageProfileArgs(
-                os_disk=OSDiskArgs(
-                    create_option="FromImage",
-                    managed_disk=ManagedDiskParametersArgs(
-                        storage_account_type="Standard_LRS"
-                    ),
-                    caching="ReadWrite",
-                    disk_size_gb=disk_size,
-                ),
-                image_reference=ImageReferenceArgs(
-                    publisher=image_publisher,
-                    offer=image_offer,
-                    sku=image_sku,
-                    version=image_version,
-                ),
-            ),
-            tags=tags,
+        storage_profile=storage_profile,
+        tags=tags,
     )
     if zone is not None:
         vmopts["zones"] = [zone]
-    vm = VirtualMachine(instance, **vmopts)
+    VirtualMachine(instance, **vmopts)
 
 
 def resources_azure_multi(

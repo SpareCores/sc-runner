@@ -1,3 +1,7 @@
+# v0.0.65 (2026-07-16)
+
+- Azure single-VM: expose `--disk-type` / `--disk-iops` / `--disk-throughput` (env `DISK_TYPE`, `DISK_IOPS`, `DISK_THROUGHPUT`) so the OS disk can use the same managed-disk tiers as multi-VM (`Premium_LRS`, `PremiumV2_LRS`, …); default remains `Standard_LRS`
+
 # v0.0.64 (2026-07-10)
 
 - Fix `render_user_data()` placeholder substitution when replacement values reference other keys (repeat until stable so DBaaS bootstrap passwords are not left as unresolved `{SC_DB_PASSWORD}` literals)
