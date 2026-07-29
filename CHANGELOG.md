@@ -1,3 +1,8 @@
+# v0.0.66 (2026-07-29)
+
+- GCP DBaaS: set Cloud SQL `settings.edition` to `ENTERPRISE_PLUS` for perf/memory-optimized and C4A tiers
+- GCP DBaaS: explicitly disable Enterprise Plus data cache (`data_cache_enabled=False`) so Postgres DBaaS scores stay comparable to multi-VM (API default is on)
+
 # v0.0.65 (2026-07-16)
 
 - Azure single-VM: expose `--disk-type` / `--disk-iops` / `--disk-throughput` (env `DISK_TYPE`, `DISK_IOPS`, `DISK_THROUGHPUT`) so the OS disk can use the same managed-disk tiers as multi-VM (`Premium_LRS`, `PremiumV2_LRS`, …); default remains `Standard_LRS`

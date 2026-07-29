@@ -44,6 +44,15 @@ def _cloud_sql_tier(md) -> str:
     return md.sku_name or "db-perf-optimized-N-16"
 
 
+def _cloud_sql_edition(tier: str, sku_tier: str) -> str:
+    """Map catalog / machine tier to Cloud SQL ``settings.edition``."""
+    if sku_tier in ("PerformanceOptimized", "MemoryOptimized", "ENTERPRISE_PLUS"):
+        return "ENTERPRISE_PLUS"
+    if tier.startswith(("db-perf-optimized-", "db-memory-optimized-", "db-c4a-")):
+        return "ENTERPRISE_PLUS"
+    return "ENTERPRISE"
+
+
 def resources_gcp_dbaas(
     *,
     zone: str,
@@ -121,6 +130,8 @@ def resources_gcp_dbaas(
     instance_name = _sql_instance_name(slug)
     tier = _cloud_sql_tier(md)
 
+    # Enterprise Plus defaults data cache ON for Postgres; keep it off so
+    # DBaaS scores stay comparable to multi-VM (no SSD data-cache layer).
     pg_instance = gcp.sql.DatabaseInstance(
         instance_name,
         name=instance_name,
@@ -131,9 +142,13 @@ def resources_gcp_dbaas(
         root_password=admin_password,
         settings=gcp.sql.DatabaseInstanceSettingsArgs(
             tier=tier,
+            edition=_cloud_sql_edition(tier, md.sku_tier),
             disk_size=md.storage_gib,
             disk_type=md.storage_type or "PD_SSD",
             disk_autoresize=False,
+            data_cache_config=gcp.sql.DatabaseInstanceSettingsDataCacheConfigArgs(
+                data_cache_enabled=False,
+            ),
             ip_configuration=gcp.sql.DatabaseInstanceSettingsIpConfigurationArgs(
                 ipv4_enabled=False,
                 private_network=network.id,
