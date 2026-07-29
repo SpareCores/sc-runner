@@ -1,8 +1,9 @@
 name: Release
 
-# Push a tag matching pyproject.toml (e.g. 0.0.63) to publish PyPI, build the
-# versioned sc-runner image, and trigger an sc-inspector image rebuild by pushing
-# an empty commit to sc-inspector via a deploy key (SSH push triggers workflows).
+# Push a tag matching pyproject.toml (e.g. 0.0.63; optional leading v is stripped)
+# to publish PyPI, build the versioned sc-runner image (ghcr …/sc-runner:X.Y.Z),
+# and trigger an sc-inspector image rebuild by pushing an empty commit to
+# sc-inspector via a deploy key (SSH push triggers workflows).
 on:
   push:
     tags:
@@ -36,7 +37,9 @@ jobs:
             exit 1
           fi
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "image_tag=${TAG}" >> "$GITHUB_OUTPUT"
+          # GHCR image tags use the bare pyproject version (see image.yml), not a
+          # leading ``v``. Prefer VERSION so inspector FROM lines resolve.
+          echo "image_tag=${VERSION}" >> "$GITHUB_OUTPUT"
 
   pypi-check:
     name: Check PyPI for existing release

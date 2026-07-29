@@ -2,6 +2,7 @@
 
 - GCP DBaaS: set Cloud SQL `settings.edition` to `ENTERPRISE_PLUS` for perf/memory-optimized and C4A tiers
 - GCP DBaaS: explicitly disable Enterprise Plus data cache (`data_cache_enabled=False`) so Postgres DBaaS scores stay comparable to multi-VM (API default is on)
+- Release workflow: pass bare semver as `image_tag` (matches GHCR `sc-runner:X.Y.Z`), not the raw git tag
 
 # v0.0.65 (2026-07-16)
 
