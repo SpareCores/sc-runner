@@ -21,6 +21,21 @@ from .gcp_project import gcp_project_id
 from .managed_db import DbaasStackSpec
 from .multi_vm import VmSpec, build_user_data_b64
 
+# pulumi_gcp binds subpackages (gcp.compute, gcp.servicenetworking, gcp.sql, ...)
+# via importlib.util.LazyLoader, which only fully executes a subpackage's module
+# body on its *first* attribute access -- and that first-access trigger is not
+# thread-safe. sc-inspector's start-dbaas runs several DBaaS stacks concurrently
+# in a ThreadPoolExecutor, all sharing this one process/module cache, so two
+# threads racing to first-touch e.g. `gcp.sql` can observe a partially executed
+# module and fail with `AttributeError: module 'pulumi_gcp.sql' has no attribute
+# 'DatabaseInstance'. Did you mean: 'database_instance'?` (confirmed live).
+# Force each subpackage to finish loading here, at import time of this module --
+# still single-threaded, since Python's own module import lock (unlike pulumi's
+# lazy-attribute shim) *is* thread-safe -- so later concurrent access is safe.
+for _mod in (gcp.compute, gcp.servicenetworking, gcp.sql):
+    _mod.__name__
+del _mod
+
 NETWORK_MODE = "private_vpc"
 CLIENT_SUBNET_CIDR = "10.0.1.0/24"
 PSA_PREFIX_LENGTH = 16

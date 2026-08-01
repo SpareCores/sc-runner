@@ -1,3 +1,16 @@
+# v0.0.69 (2026-08-02)
+
+- GCP DBaaS: force-load `pulumi_gcp.compute` / `.servicenetworking` / `.sql` once at
+  module-import time instead of relying on their first (lazy) attribute access.
+  `pulumi_gcp` binds those subpackages via `importlib.util.LazyLoader`, which is not
+  thread-safe; sc-inspector's `start-dbaas` runs several DBaaS stacks concurrently in
+  a `ThreadPoolExecutor` in one process, so two threads racing to first-touch e.g.
+  `gcp.sql` could observe a partially-executed module and fail with
+  `AttributeError: module 'pulumi_gcp.sql' has no attribute 'DatabaseInstance'. Did
+  you mean: 'database_instance'?` (confirmed live in a real run — other, concurrently
+  running stacks succeeded in the same instant, confirming the race rather than a
+  permanent/version issue)
+
 # v0.0.68 (2026-08-01)
 
 - GCP: force ARM64 boot image + `architecture=ARM64` for Tau T2A / Axion C4A / N4A
