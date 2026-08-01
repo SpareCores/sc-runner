@@ -13,14 +13,19 @@ import os
 import pulumi
 import pulumi_gcp as gcp
 
-from ..gcp_disks import gcp_boot_disk_type
+from ..gcp_disks import apply_gcp_boot_disk_defaults, gcp_boot_disk_type
 from .gcp_project import gcp_project_id
 
 
 DEFAULTS = {
     "instance_opts": ("GCP_INSTANCE_OPTS", dict(labels={"created-by": "sc-runner"})),
     "bootdisk_opts": ("GCP_BOOTDISK_OPTS", dict()),
-    "bootdisk_init_opts": ("GCP_BOOTDISK_INIT_OPTS", dict(image="ubuntu-2404-lts-amd64")),
+    # architecture is intentionally omitted: apply_gcp_boot_disk_defaults() fills
+    # it in per machine_type (respecting an explicit caller override, or else
+    # looking up Server.cpu_architecture in the sc-crawler catalog). The image
+    # here is just the x86_64 baseline; apply_gcp_boot_disk_defaults() swaps its
+    # "-amd64" suffix for "-arm64" on ARM machine types.
+    "bootdisk_init_opts": ("GCP_BOOTDISK_INIT_OPTS", dict(image="ubuntu-os-cloud/ubuntu-2404-lts-amd64")),
     "scheduling_opts": ("GCP_SCHEDULING_OPTS", dict()),
 }
 
@@ -72,6 +77,7 @@ def resources_gcp(
         instance_opts["metadata_startup_script"] = base64.b64decode(user_data)
     if disk_size:
         bootdisk_init_opts["size"] = disk_size
+    apply_gcp_boot_disk_defaults(instance, bootdisk_init_opts)
     disk_type = gcp_boot_disk_type(instance, bootdisk_init_opts.get("type"))
     if disk_type:
         bootdisk_init_opts["type"] = disk_type
@@ -161,6 +167,7 @@ def resources_gcp_multi(
         opts = copy.deepcopy(common_instance_opts)
         init = copy.deepcopy(bootdisk_init_opts)
         init["size"] = disk_gib
+        apply_gcp_boot_disk_defaults(instance_type, init)
         resolved = gcp_boot_disk_type(instance_type, disk_type or init.get("type"))
         if resolved:
             init["type"] = resolved

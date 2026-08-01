@@ -1,3 +1,19 @@
+# v0.0.68 (2026-08-01)
+
+- GCP: force ARM64 boot image + `architecture=ARM64` for Tau T2A / Axion C4A / N4A
+  (fixes `boot disk architecture (X86_64) is not compatible with machine type architecture (ARM64)`)
+- GCP: `apply_gcp_boot_disk_defaults()` now respects an explicit `architecture` already
+  set by the caller (e.g. sc-inspector's per-instance catalog lookup) instead of always
+  overwriting it from a hardcoded ARM-series list, which was silently discarding correct
+  caller-supplied values. It now also swaps the `-amd64`/`-arm64` suffix on whatever
+  `image` is passed in (rather than hardcoding both per-arch image names), so
+  `bootdisk_init_opts`'s default only needs to name the x86_64 Ubuntu image once
+- GCP: `gcp_boot_architecture()` now looks up `Server.cpu_architecture` in the sc-crawler
+  catalog (same pattern as `resources/azure.py` and `resources/alicloud.py`) instead of a
+  hardcoded machine-series list, now that sc-crawler reads GCP's real `MachineType.architecture`
+  API field (confirmed live: correctly `ARM64` for C4A/N4A today) instead of its own
+  hardcoded `t2a`-only check
+
 # v0.0.67 (2026-08-01)
 
 - GCP: auto-select `hyperdisk-balanced` boot disks for Hyperdisk-only machine series

@@ -12,7 +12,11 @@ import pulumi
 import pulumi_gcp as gcp
 
 from .azure_dbaas import export_dbaas_stack
-from ..gcp_disks import cloud_sql_disk_type, gcp_boot_disk_type
+from ..gcp_disks import (
+    apply_gcp_boot_disk_defaults,
+    cloud_sql_disk_type,
+    gcp_boot_disk_type,
+)
 from .gcp_project import gcp_project_id
 from .managed_db import DbaasStackSpec
 from .multi_vm import VmSpec, build_user_data_b64
@@ -211,6 +215,7 @@ def resources_gcp_dbaas(
 
     init = copy.deepcopy(bootdisk_init_opts)
     init["size"] = dbaas.client_disk_gib
+    apply_gcp_boot_disk_defaults(dbaas.client_instance, init)
     client_disk = gcp_boot_disk_type(
         dbaas.client_instance, dbaas.client_disk_type or init.get("type")
     )

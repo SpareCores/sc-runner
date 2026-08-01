@@ -16,6 +16,8 @@ Sources (Google Cloud docs):
 
 from __future__ import annotations
 
+from . import data
+
 # GCE machine series that do not support pd-ssd / pd-balanced / pd-standard.
 # Boot and attached disks must be Hyperdisk (typically hyperdisk-balanced).
 # Z3 still allows PD; C3/C3D allow PD — do not include those.
@@ -52,6 +54,55 @@ CLOUD_SQL_HYPERDISK_BALANCED = "HYPERDISK_BALANCED"
 def gcp_machine_series(machine_type: str) -> str:
     """Return the series prefix of a GCE machine type (``c4-highmem-48`` → ``c4``)."""
     return (machine_type or "").split("-", 1)[0].lower()
+
+
+def gcp_boot_architecture(machine_type: str) -> str:
+    """Cloud API architecture value for ``machine_type`` (``ARM64`` or ``X86_64``).
+
+    Looked up from the sc-crawler catalog (``Server.cpu_architecture``) the
+    same way ``resources/azure.py``, ``azure_dbaas.py`` and ``alicloud.py``
+    already do, rather than a hardcoded machine-series list here. sc-crawler
+    itself reads GCP's ``MachineType.architecture`` API field directly (see
+    ``vendors/_gcp.py``), so newly added ARM families are picked up
+    automatically with no code change anywhere in this chain.
+    """
+    arch = data.server_cpu_architecture("gcp", machine_type).lower()
+    return "ARM64" if "arm" in arch else "X86_64"
+
+
+_ARCH_SUFFIX = {"X86_64": "amd64", "ARM64": "arm64"}
+
+
+def apply_gcp_boot_disk_defaults(machine_type: str, init: dict) -> dict:
+    """Fill in boot-disk ``image`` / ``architecture`` for ``machine_type``.
+
+    Mutates and returns ``init``. If the caller already set an explicit
+    ``architecture`` (e.g. sc-inspector, which derives it per-instance from
+    catalog data it already has in hand), that value wins. Otherwise falls
+    back to a catalog lookup via ``gcp_boot_architecture`` — this covers
+    callers that don't pass one, such as direct sc-runner CLI/DBaaS-client
+    invocations.
+
+    ``image`` is left untouched unless it ends with the *other* arch's
+    ``-amd64``/``-arm64`` suffix (as GCP's own Ubuntu image family names do),
+    in which case that suffix is swapped for the right one. This way the
+    default in ``resources/gcp.py`` (or a ``GCP_BOOTDISK_INIT_OPTS`` override)
+    only needs to name the x86_64 image once, instead of hardcoding both
+    per-arch image names here — and images with no arch suffix at all (e.g.
+    the Debian family used for ``-416`` machines, where the x86_64 variant has
+    no suffix) are correctly left alone.
+    """
+    arch = init.get("architecture") or gcp_boot_architecture(machine_type)
+    init["architecture"] = arch
+    wanted = _ARCH_SUFFIX[arch]
+    other = _ARCH_SUFFIX["X86_64" if arch == "ARM64" else "ARM64"]
+    image = init.get("image") or ""
+    if image.endswith(f"-{other}"):
+        image = f"{image[: -len(other)]}{wanted}"
+    elif not image:
+        image = f"ubuntu-os-cloud/ubuntu-2404-lts-{wanted}"
+    init["image"] = image
+    return init
 
 
 def gcp_requires_hyperdisk(machine_type: str) -> bool:
