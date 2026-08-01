@@ -13,6 +13,7 @@ import os
 import pulumi
 import pulumi_gcp as gcp
 
+from ..gcp_disks import gcp_boot_disk_type
 from .gcp_project import gcp_project_id
 
 
@@ -66,10 +67,14 @@ def resources_gcp(
         raise ValueError("zone must be specified in the zone option")
     # we don't want to modify the default
     instance_opts = copy.deepcopy(instance_opts)
+    bootdisk_init_opts = copy.deepcopy(bootdisk_init_opts)
     if user_data:
         instance_opts["metadata_startup_script"] = base64.b64decode(user_data)
     if disk_size:
         bootdisk_init_opts["size"] = disk_size
+    disk_type = gcp_boot_disk_type(instance, bootdisk_init_opts.get("type"))
+    if disk_type:
+        bootdisk_init_opts["type"] = disk_type
 
     provider = _gcp_provider(zone)
     if public_key:
@@ -156,8 +161,9 @@ def resources_gcp_multi(
         opts = copy.deepcopy(common_instance_opts)
         init = copy.deepcopy(bootdisk_init_opts)
         init["size"] = disk_gib
-        if disk_type:
-            init["type"] = disk_type
+        resolved = gcp_boot_disk_type(instance_type, disk_type or init.get("type"))
+        if resolved:
+            init["type"] = resolved
         opts |= dict(
             machine_type=instance_type,
             zone=zone,

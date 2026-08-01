@@ -12,6 +12,7 @@ import pulumi
 import pulumi_gcp as gcp
 
 from .azure_dbaas import export_dbaas_stack
+from ..gcp_disks import cloud_sql_disk_type, gcp_boot_disk_type
 from .gcp_project import gcp_project_id
 from .managed_db import DbaasStackSpec
 from .multi_vm import VmSpec, build_user_data_b64
@@ -129,9 +130,35 @@ def resources_gcp_dbaas(
     admin_password = md.admin_password or _random_password()
     instance_name = _sql_instance_name(slug)
     tier = _cloud_sql_tier(md)
+    edition = _cloud_sql_edition(tier, md.sku_tier)
+    disk_type = cloud_sql_disk_type(tier, md.storage_type)
 
     # Enterprise Plus defaults data cache ON for Postgres; keep it off so
     # DBaaS scores stay comparable to multi-VM (no SSD data-cache layer).
+    # Only set data_cache_config for ENTERPRISE_PLUS — the block is invalid for
+    # ENTERPRISE (n1 / shared-core) and can force the API into ENTERPRISE_PLUS.
+    settings_kwargs: dict = dict(
+        tier=tier,
+        edition=edition,
+        disk_size=md.storage_gib,
+        disk_type=disk_type,
+        disk_autoresize=False,
+        ip_configuration=gcp.sql.DatabaseInstanceSettingsIpConfigurationArgs(
+            ipv4_enabled=False,
+            private_network=network.id,
+            allocated_ip_range=psa_range.name,
+            enable_private_path_for_google_cloud_services=True,
+            # Private VPC clients can connect without TLS (avoids BenchBase sslmode=disable failures).
+            ssl_mode="ALLOW_UNENCRYPTED_AND_ENCRYPTED",
+        ),
+    )
+    if edition == "ENTERPRISE_PLUS":
+        settings_kwargs["data_cache_config"] = (
+            gcp.sql.DatabaseInstanceSettingsDataCacheConfigArgs(
+                data_cache_enabled=False,
+            )
+        )
+
     pg_instance = gcp.sql.DatabaseInstance(
         instance_name,
         name=instance_name,
@@ -140,24 +167,7 @@ def resources_gcp_dbaas(
         region=region,
         deletion_protection=False,
         root_password=admin_password,
-        settings=gcp.sql.DatabaseInstanceSettingsArgs(
-            tier=tier,
-            edition=_cloud_sql_edition(tier, md.sku_tier),
-            disk_size=md.storage_gib,
-            disk_type=md.storage_type or "PD_SSD",
-            disk_autoresize=False,
-            data_cache_config=gcp.sql.DatabaseInstanceSettingsDataCacheConfigArgs(
-                data_cache_enabled=False,
-            ),
-            ip_configuration=gcp.sql.DatabaseInstanceSettingsIpConfigurationArgs(
-                ipv4_enabled=False,
-                private_network=network.id,
-                allocated_ip_range=psa_range.name,
-                enable_private_path_for_google_cloud_services=True,
-                # Private VPC clients can connect without TLS (avoids BenchBase sslmode=disable failures).
-                ssl_mode="ALLOW_UNENCRYPTED_AND_ENCRYPTED",
-            ),
-        ),
+        settings=gcp.sql.DatabaseInstanceSettingsArgs(**settings_kwargs),
         opts=pulumi.ResourceOptions(
             provider=provider,
             depends_on=[psa_connection],
@@ -201,8 +211,11 @@ def resources_gcp_dbaas(
 
     init = copy.deepcopy(bootdisk_init_opts)
     init["size"] = dbaas.client_disk_gib
-    if dbaas.client_disk_type:
-        init["type"] = dbaas.client_disk_type
+    client_disk = gcp_boot_disk_type(
+        dbaas.client_instance, dbaas.client_disk_type or init.get("type")
+    )
+    if client_disk:
+        init["type"] = client_disk
 
     client = gcp.compute.Instance(
         f"{dbaas.client_instance}-client",

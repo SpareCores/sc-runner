@@ -1,3 +1,12 @@
+# v0.0.67 (2026-08-01)
+
+- GCP: auto-select `hyperdisk-balanced` boot disks for Hyperdisk-only machine series
+  (C4/C4A/C4D/C4N, N4/N4A/N4D, G4, A3/A4/A4X, X4, M4N, H4D) so create no longer fails with
+  `pd-ssd disk type cannot be used by …`
+- GCP DBaaS: use Cloud SQL `HYPERDISK_BALANCED` for `db-c4a-*` / `db-n4-*` tiers (PD_SSD is invalid)
+- GCP DBaaS: only set `data_cache_config` for `ENTERPRISE_PLUS` so n1/Enterprise tiers are not
+  forced into Enterprise Plus (fixes `Invalid Tier (db-n1-*) for (ENTERPRISE_PLUS) Edition`)
+
 # v0.0.66 (2026-07-29)
 
 - GCP DBaaS: set Cloud SQL `settings.edition` to `ENTERPRISE_PLUS` for perf/memory-optimized and C4A tiers
