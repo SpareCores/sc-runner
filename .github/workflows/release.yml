@@ -117,10 +117,18 @@ jobs:
           VERSION: ${{ needs.version.outputs.version }}
         run: |
           set -euo pipefail
+          # The JSON API often lists a new release before the simple index /
+          # files CDN that pip/uv actually resolve against. Checking only
+          # /pypi/.../json previously let the image build race ahead and fail
+          # with "there is no version of sparecores-runner==X" (seen on 0.0.69).
+          # Probe both the JSON API *and* a real uv resolve before continuing.
+          python3 -m pip install --user -q uv
+          export PATH="$HOME/.local/bin:$PATH"
           for attempt in $(seq 1 36); do
             if curl -fsS "https://pypi.org/pypi/sparecores-runner/json" \
-              | python3 -c "import json,sys,os; releases=json.load(sys.stdin).get('releases',{}); sys.exit(0 if os.environ['VERSION'] in releases and releases[os.environ['VERSION']] else 1)"; then
-              echo "sparecores-runner==${VERSION} is available on PyPI (attempt ${attempt})"
+              | python3 -c "import json,sys,os; releases=json.load(sys.stdin).get('releases',{}); sys.exit(0 if os.environ['VERSION'] in releases and releases[os.environ['VERSION']] else 1)" \
+              && uv pip install --python "$(which python3)" --dry-run "sparecores-runner==${VERSION}"; then
+              echo "sparecores-runner==${VERSION} is installable from PyPI (attempt ${attempt})"
               exit 0
             fi
             echo "Waiting for PyPI propagation (attempt ${attempt}/36)..."
