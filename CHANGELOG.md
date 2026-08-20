@@ -1,3 +1,10 @@
+# v0.0.73 (2026-08-20)
+
+- AWS: bound provider API retries (`max_retries=3`, `retry_mode=standard` by default)
+  and EC2 create timeout (`5m`) so `InsufficientInstanceCapacity` fails in minutes
+  instead of ~50m (SDK default 25 attempts). Override with `AWS_MAX_RETRIES` /
+  `AWS_INSTANCE_CREATE_TIMEOUT` / `AWS_RETRY_MODE`.
+
 # v0.0.72 (2026-08-20)
 
 - Add AWS RDS DBaaS stack: `resources_aws_dbaas()` provisions private Postgres +

@@ -1,6 +1,7 @@
 from .. import DefaultOpt, JSON
 from .. import data
 from .base import StackName, default, defaults
+from .aws_config import aws_provider, instance_resource_opts
 from .aws_dbaas import resources_aws_dbaas
 from .managed_db import DbaasStackSpec
 from .multi_vm import MultiVmStackSpec, build_server_user_data_b64, export_multi_vm_stack
@@ -117,15 +118,11 @@ def resources_aws(
     vpc_opts = copy.deepcopy(vpc_opts)
     subnet_opts = copy.deepcopy(subnet_opts)
     sg_opts = copy.deepcopy(sg_opts)
-    prov_kwargs = {}
-    if assume_role_arn:
-        prov_kwargs["assume_role"] = aws.ProviderAssumeRoleArgs(role_arn=assume_role_arn)
-    provider = aws.Provider(
+    provider = aws_provider(
         resource_name=region,
         region=region,
-        skip_metadata_api_check=False,  # enable instance roles
-        default_tags=aws.ProviderDefaultTagsArgs(tags=tags | {"Name": instance}),
-        **prov_kwargs,
+        tags=tags | {"Name": instance},
+        assume_role_arn=assume_role_arn,
     )
 
     if public_key:
@@ -223,7 +220,7 @@ def resources_aws(
     aws.ec2.Instance(
         instance,
         instance_type=instance,
-        opts=pulumi.ResourceOptions(provider=provider),
+        opts=instance_resource_opts(provider),
         **instance_opts,
     )
 
@@ -254,15 +251,11 @@ def resources_aws_multi(
     vpc_opts.setdefault("assign_generated_ipv6_cidr_block", True)
     subnet_opts.setdefault("cidr_block", DEFAULT_MULTI_VM_SUBNET_CIDR)
 
-    prov_kwargs = {}
-    if assume_role_arn:
-        prov_kwargs["assume_role"] = aws.ProviderAssumeRoleArgs(role_arn=assume_role_arn)
-    provider = aws.Provider(
+    provider = aws_provider(
         resource_name=region,
         region=region,
-        skip_metadata_api_check=False,
-        default_tags=aws.ProviderDefaultTagsArgs(tags=tags | {"Name": multi_vm.db_instance}),
-        **prov_kwargs,
+        tags=tags | {"Name": multi_vm.db_instance},
+        assume_role_arn=assume_role_arn,
     )
 
     common_opts = copy.deepcopy(instance_opts)
@@ -364,7 +357,7 @@ def resources_aws_multi(
     client = aws.ec2.Instance(
         f"{multi_vm.client_instance}-client",
         instance_type=multi_vm.client_instance,
-        opts=pulumi.ResourceOptions(provider=provider),
+        opts=instance_resource_opts(provider),
         **client_opts,
     )
 
@@ -390,7 +383,7 @@ def resources_aws_multi(
     server = aws.ec2.Instance(
         multi_vm.db_instance,
         instance_type=multi_vm.db_instance,
-        opts=pulumi.ResourceOptions(provider=provider, depends_on=[client]),
+        opts=instance_resource_opts(provider, depends_on=[client]),
         **server_opts,
     )
 

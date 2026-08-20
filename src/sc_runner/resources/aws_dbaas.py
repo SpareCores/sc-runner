@@ -14,6 +14,9 @@ from .azure_dbaas import export_dbaas_stack
 from .managed_db import DbaasStackSpec
 from .multi_vm import VmSpec, build_user_data_b64
 
+# Reuse AWS provider retry / instance create timeout helpers.
+from .aws_config import aws_provider, instance_resource_opts
+
 NETWORK_MODE = "private_vpc"
 DEFAULT_VPC_CIDR = "10.0.0.0/16"
 CLIENT_SUBNET_CIDR = "10.0.1.0/24"
@@ -57,15 +60,11 @@ def resources_aws_dbaas(
     slug = dbaas.instance_key_slug or "dbaas"
     instance_opts = dict(instance_opts)
 
-    prov_kwargs: dict = {}
-    if assume_role_arn:
-        prov_kwargs["assume_role"] = aws.ProviderAssumeRoleArgs(role_arn=assume_role_arn)
-    provider = aws.Provider(
+    provider = aws_provider(
         resource_name=region,
         region=region,
-        skip_metadata_api_check=False,
-        default_tags=aws.ProviderDefaultTagsArgs(tags=tags | {"Name": slug}),
-        **prov_kwargs,
+        tags=tags | {"Name": slug},
+        assume_role_arn=assume_role_arn,
     )
     opts = pulumi.ResourceOptions(provider=provider)
 
@@ -285,7 +284,7 @@ def resources_aws_dbaas(
     client = aws.ec2.Instance(
         f"{dbaas.client_instance}-client",
         instance_type=dbaas.client_instance,
-        opts=pulumi.ResourceOptions(provider=provider, depends_on=[pg]),
+        opts=instance_resource_opts(provider, depends_on=[pg]),
         **client_opts,
     )
 
