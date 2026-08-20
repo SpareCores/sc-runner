@@ -328,7 +328,7 @@ def resources_aws_multi(
             **rule,
         )
 
-    client_opts = copy.deepcopy(common_opts)
+    client_opts = dict(common_opts)
     client_opts["ami"] = resolve_ami(multi_vm.client_instance)
     client_opts["user_data_base64"] = multi_vm.client_user_data_b64
     client_opts["subnet_id"] = subnet.id
@@ -353,7 +353,9 @@ def resources_aws_multi(
     )
 
     server_user_data_b64 = build_server_user_data_b64(multi_vm, client.private_ip)
-    server_opts = copy.deepcopy(common_opts)
+    # Shallow copy: common_opts may already hold Output values (e.g. key_name),
+    # and copy.deepcopy(Output) raises "__getstate__ can only be called during serialization".
+    server_opts = dict(common_opts)
     server_opts["ami"] = resolve_ami(multi_vm.db_instance)
     server_opts["user_data_base64"] = server_user_data_b64
     server_opts["subnet_id"] = subnet.id

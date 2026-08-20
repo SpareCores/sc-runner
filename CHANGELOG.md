@@ -1,3 +1,9 @@
+# v0.0.71 (2026-08-20)
+
+- AWS multi-VM: use shallow copies of instance opts after `key_name` is set to a
+  Pulumi Output; `copy.deepcopy(Output)` raises
+  `__getstate__ can only be called during serialization` and aborts stack create
+
 # v0.0.70 (2026-08-20)
 
 - AWS multi-VM: set default VPC/subnet CIDR blocks (`10.0.0.0/16` / `10.0.1.0/24`) when
