@@ -1,3 +1,13 @@
+# v0.0.72 (2026-08-20)
+
+- Add AWS RDS DBaaS stack: `resources_aws_dbaas()` provisions private Postgres +
+  companion client EC2 (dedicated VPC, DB subnet group across 2 AZs, gp3 IOPS/throughput)
+- `resources_aws()` dispatches `dbaas=` stacks via `dbaas_slug` (same pattern as Azure/GCP)
+- `ManagedDbSpec`: optional `storage_iops` / `storage_throughput_mb_s` for AWS gp3
+- `data.database_region_prices()` for cheapest-first DBaaS region ordering
+- AWS DBaaS: only set gp3 IOPS/throughput when `storage_gib >= 400` (RDS Postgres limit);
+  unique Pulumi name for client route-table association
+
 # v0.0.71 (2026-08-20)
 
 - AWS multi-VM: use shallow copies of instance opts after `key_name` is set to a

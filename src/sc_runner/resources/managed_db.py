@@ -20,6 +20,8 @@ class ManagedDbSpec:
     storage_type: str = "PremiumV2_LRS"
     storage_edition: str = "ManagedDiskV2"
     storage_iops_tier: str = "P30"
+    storage_iops: int | None = None
+    storage_throughput_mb_s: int | None = None
     admin_login: str = "scadmin"
     admin_password: str = ""
     database_name: str = "bench"  # created by sc-inspector bootstrap, not Pulumi

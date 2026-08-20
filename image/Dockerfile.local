@@ -1,0 +1,17 @@
+# Local smoke-test image: Pulumi + editable install of the checkout's sc-runner.
+FROM python:3.12
+VOLUME /data/workdir
+VOLUME /data/backend
+ENV PULUMI_CONFIG_PASSPHRASE=""
+ENV VIRTUAL_ENV="/pulumi_venv"
+ENV PATH=/root/.pulumi/bin:$VIRTUAL_ENV/bin:$PATH
+RUN curl -fsSL https://get.pulumi.com | sh && \
+    pulumi plugin install resource aws
+RUN python -m venv "$VIRTUAL_ENV" && \
+    "$VIRTUAL_ENV/bin/pip" install -U pip uv
+WORKDIR /src
+COPY pyproject.toml README.md LICENSE ./
+COPY src ./src
+COPY scripts ./scripts
+RUN uv pip install -e . --python "$VIRTUAL_ENV/bin/python"
+ENTRYPOINT ["sc-runner"]

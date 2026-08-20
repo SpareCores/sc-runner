@@ -1,6 +1,8 @@
 from .. import DefaultOpt, JSON
 from .. import data
 from .base import StackName, default, defaults
+from .aws_dbaas import resources_aws_dbaas
+from .managed_db import DbaasStackSpec
 from .multi_vm import MultiVmStackSpec, build_server_user_data_b64, export_multi_vm_stack
 from typing import Annotated
 import click
@@ -77,8 +79,22 @@ def resources_aws(
         egress_rules: Annotated[str, DefaultOpt(["--egress-rules"], type=JSON, default=defaults(DEFAULTS, "egress_rules"), help="List of Pulumi aws.vpc.SecurityGroupEgressRule options")] = default(DEFAULTS, "egress_rules"),
         user_data: Annotated[str | None, DefaultOpt(["--user-data"], type=str, help="Base64 encoded string with user_data script to run at boot")] = os.environ.get("USER_DATA", None),
         disk_size: Annotated[int, DefaultOpt(["--disk-size"], type=int, help="Boot disk size in GiBs")] = int(os.environ.get("DISK_SIZE", 30)),
+        dbaas_slug: Annotated[str | None, DefaultOpt(["--dbaas-slug"], type=str, help="DBaaS stack slug (cache-tier provision)"), StackName()] = os.environ.get("DBAAS_SLUG", None),
         multi_vm: MultiVmStackSpec | None = None,
+        dbaas: DbaasStackSpec | None = None,
 ):
+    if dbaas is not None:
+        return resources_aws_dbaas(
+            region=region,
+            zone=zone,
+            assume_role_arn=assume_role_arn,
+            ami_owner=ami_owner,
+            ami_name=ami_name,
+            public_key=public_key,
+            tags=tags,
+            instance_opts=instance_opts,
+            dbaas=dbaas,
+        )
     if multi_vm is not None:
         return resources_aws_multi(
             region=region,

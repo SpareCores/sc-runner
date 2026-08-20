@@ -1,9 +1,18 @@
 from sc_crawler.tables import Server, ServerPrice, Region, Vendor, Zone
+from sqlalchemy import text
 from sqlmodel import create_engine, Session, select
 import sc_data
 
 
-session = Session(create_engine(f"sqlite:///{sc_data.db.path}"))
+_engine = create_engine(f"sqlite:///{sc_data.db.path}")
+session = Session(_engine)
+
+# database_price.ha for non-HA (standalone) deploys. AWS Single-AZ is SINGLE_ZONE.
+_DBAAS_STANDALONE_PRICE_HA = {
+    "aws": "SINGLE_ZONE",
+    "azure": "NONE",
+    "gcp": "NONE",
+}
 
 
 def vendors():
@@ -101,6 +110,51 @@ def server_zone_prices(vendor: str, server: str) -> dict[str, float]:
 def sort_by_price(keys: list[str], prices: dict[str, float]) -> list[str]:
     """Sort location keys cheapest-first using sc-data hourly prices."""
     return sorted(keys, key=lambda key: (prices.get(key, float("inf")), key))
+
+
+def database_region_prices(
+    vendor: str,
+    database_id: str,
+    *,
+    ha: str | None = None,
+) -> dict[str, float]:
+    """Return minimum ACTIVE ONDEMAND hourly price per region api_reference.
+
+    ``database_id`` may be the catalog ``database_id`` or ``api_reference``.
+    ``ha`` defaults to the vendor's standalone price HA key (AWS: SINGLE_ZONE).
+    """
+    price_ha = ha or _DBAAS_STANDALONE_PRICE_HA.get(vendor, "NONE")
+    stmt = text(
+        """
+        SELECT r.api_reference, dp.price
+        FROM database_price AS dp
+        JOIN database AS d
+          ON d.vendor_id = dp.vendor_id
+         AND d.database_id = dp.database_id
+        JOIN region AS r
+          ON r.vendor_id = dp.vendor_id
+         AND r.region_id = dp.region_id
+        WHERE dp.vendor_id = :vendor
+          AND (d.database_id = :database_id OR d.api_reference = :database_id)
+          AND d.status = 'ACTIVE'
+          AND dp.status = 'ACTIVE'
+          AND dp.allocation = 'ONDEMAND'
+          AND dp.ha = :price_ha
+        """
+    )
+    with _engine.connect() as conn:
+        return _min_prices(
+            list(
+                conn.execute(
+                    stmt,
+                    {
+                        "vendor": vendor,
+                        "database_id": database_id,
+                        "price_ha": price_ha,
+                    },
+                ).all()
+            )
+        )
 
 
 def servers(vendor: str, region: str | None = None, zone: str | None = None):
