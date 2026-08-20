@@ -1,3 +1,9 @@
+# v0.0.70 (2026-08-20)
+
+- AWS multi-VM: set default VPC/subnet CIDR blocks (`10.0.0.0/16` / `10.0.1.0/24`) when
+  `AWS_VPC_OPTS` / `AWS_SUBNET_OPTS` omit them; aws provider v7 rejects CreateVpc without
+  `cidrBlock`
+
 # v0.0.69 (2026-08-02)
 
 - GCP DBaaS: force-load `pulumi_gcp.compute` / `.servicenetworking` / `.sql` once at

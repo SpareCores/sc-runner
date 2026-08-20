@@ -21,6 +21,10 @@ V6_ALLOW_ALL = dict(ip_protocol="-1",
                     to_port=0,
                     )
 
+# Dedicated VPC/subnet CIDRs for multi-VM stacks (single-VM uses the account default VPC).
+DEFAULT_MULTI_VM_VPC_CIDR = "10.0.0.0/16"
+DEFAULT_MULTI_VM_SUBNET_CIDR = "10.0.1.0/24"
+
 # defaults for JSON-based options
 # key is the option variable name, value is a tuple of env var name and the default value
 DEFAULTS = {
@@ -229,6 +233,10 @@ def resources_aws_multi(
     vpc_opts = copy.deepcopy(vpc_opts)
     subnet_opts = copy.deepcopy(subnet_opts)
     sg_opts = copy.deepcopy(sg_opts)
+
+    vpc_opts.setdefault("cidr_block", DEFAULT_MULTI_VM_VPC_CIDR)
+    vpc_opts.setdefault("assign_generated_ipv6_cidr_block", True)
+    subnet_opts.setdefault("cidr_block", DEFAULT_MULTI_VM_SUBNET_CIDR)
 
     prov_kwargs = {}
     if assume_role_arn:
