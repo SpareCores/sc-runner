@@ -1,3 +1,9 @@
+# v0.0.74 (2026-08-24)
+
+- AWS: optional Spot via `--instance-market-opts` / `AWS_INSTANCE_MARKET_OPTS`
+  (default `{}` keeps on-demand). Maps to Pulumi `instance_market_options` for
+  single-VM and multi-VM stacks (e.g. `{"market_type":"spot"}`).
+
 # v0.0.73 (2026-08-20)
 
 - AWS: bound provider API retries (`max_retries=3`, `retry_mode=standard` by default)

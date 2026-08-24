@@ -38,6 +38,8 @@ DEFAULTS = {
     "sg_opts": ("AWS_SG_OPTS", dict()),
     "ingress_rules": ("AWS_INGRESS_RULES", [V4_ALLOW_ALL, V6_ALLOW_ALL]),
     "egress_rules": ("AWS_EGRESS_RULES", [V4_ALLOW_ALL, V6_ALLOW_ALL]),
+    # Empty = on-demand (current default). Set market_type=spot for Spot Instances.
+    "instance_market_opts": ("AWS_INSTANCE_MARKET_OPTS", dict()),
 }
 
 
@@ -61,6 +63,15 @@ def _root_block_device_args(
     return args
 
 
+def _instance_market_options_args(opts: dict) -> aws.ec2.InstanceInstanceMarketOptionsArgs:
+    """Convert JSON market opts into Pulumi Args (nested spot_options included)."""
+    opts = copy.deepcopy(opts)
+    spot = opts.get("spot_options")
+    if isinstance(spot, dict):
+        opts["spot_options"] = aws.ec2.InstanceInstanceMarketOptionsSpotOptionsArgs(**spot)
+    return aws.ec2.InstanceInstanceMarketOptionsArgs(**opts)
+
+
 def resources_aws(
         region: Annotated[str, DefaultOpt(["--region"], type=click.Choice(data.regions("aws")), help="Region"), StackName()] = os.environ.get("AWS_DEFAULT_REGION", "us-east-1"),
         zone: Annotated[str, DefaultOpt(["--zone"], type=click.Choice(data.zones("aws")), help="Availability zone"), StackName()] = os.environ.get("AWS_ZONE", None),
@@ -78,6 +89,7 @@ def resources_aws(
         sg_opts: Annotated[str, DefaultOpt(["--sg-opts"], type=JSON, default=defaults(DEFAULTS, "sg_opts"), help="Pulumi aws.ec2.SecurityGroup options")] = default(DEFAULTS, "sg_opts"),
         ingress_rules: Annotated[str, DefaultOpt(["--ingress-rules"], type=JSON, default=defaults(DEFAULTS, "ingress_rules"), help="List of Pulumi aws.vpc.SecurityGroupIngressRule options")] = default(DEFAULTS, "ingress_rules"),
         egress_rules: Annotated[str, DefaultOpt(["--egress-rules"], type=JSON, default=defaults(DEFAULTS, "egress_rules"), help="List of Pulumi aws.vpc.SecurityGroupEgressRule options")] = default(DEFAULTS, "egress_rules"),
+        instance_market_opts: Annotated[str, DefaultOpt(["--instance-market-opts"], type=JSON, default=defaults(DEFAULTS, "instance_market_opts"), help="Pulumi aws.ec2.InstanceInstanceMarketOptionsArgs (e.g. spot)")] = default(DEFAULTS, "instance_market_opts"),
         user_data: Annotated[str | None, DefaultOpt(["--user-data"], type=str, help="Base64 encoded string with user_data script to run at boot")] = os.environ.get("USER_DATA", None),
         disk_size: Annotated[int, DefaultOpt(["--disk-size"], type=int, help="Boot disk size in GiBs")] = int(os.environ.get("DISK_SIZE", 30)),
         dbaas_slug: Annotated[str | None, DefaultOpt(["--dbaas-slug"], type=str, help="DBaaS stack slug (cache-tier provision)"), StackName()] = os.environ.get("DBAAS_SLUG", None),
@@ -111,6 +123,7 @@ def resources_aws(
             sg_opts=sg_opts,
             ingress_rules=ingress_rules,
             egress_rules=egress_rules,
+            instance_market_opts=instance_market_opts,
             multi_vm=multi_vm,
         )
     # as this function might be called multiple times, and we change the values below, we must make sure we work on copies
@@ -136,6 +149,8 @@ def resources_aws(
         instance_opts["user_data_base64"] = user_data
     if disk_size:
         instance_opts["root_block_device"] = aws.ec2.InstanceRootBlockDeviceArgs(volume_size=disk_size)
+    if instance_market_opts:
+        instance_opts["instance_market_options"] = _instance_market_options_args(instance_market_opts)
 
     if "ami" not in instance_opts:
         # some instances are marked as i386, but they aren't IA-32, replace them, so we can find AMIs
@@ -240,6 +255,7 @@ def resources_aws_multi(
     sg_opts: dict,
     ingress_rules: list[dict],
     egress_rules: list[dict],
+    instance_market_opts: dict,
     multi_vm: MultiVmStackSpec,
 ):
     instance_opts = copy.deepcopy(instance_opts)
@@ -259,6 +275,8 @@ def resources_aws_multi(
     )
 
     common_opts = copy.deepcopy(instance_opts)
+    if instance_market_opts:
+        common_opts["instance_market_options"] = _instance_market_options_args(instance_market_opts)
     if public_key and "key_name" not in common_opts:
         pubkey = aws.ec2.KeyPair(
             multi_vm.db_instance,
