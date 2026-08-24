@@ -1,6 +1,6 @@
 from .. import DefaultOpt, JSON
 from .. import data
-from .base import StackName, default, defaults
+from .base import StackName, default, defaults, spot_from_env, spot_opt
 from .multi_vm import MultiVmStackSpec, build_server_user_data_b64, export_multi_vm_stack
 from typing import Annotated
 import click
@@ -94,6 +94,7 @@ def resources_alicloud(
         disk_size: Annotated[int, DefaultOpt(["--disk-size"], type=int, help="Boot disk size in GiBs")] = int(os.environ.get("DISK_SIZE", 30)),
         availability_zone: Annotated[str | None, DefaultOpt(["--availability-zone"], type=click.Choice(data.zones("alicloud")), help="Availability zone")] = os.environ.get("ALICLOUD_AVAILABILITY_ZONE", None),
         shared_vpc_name_prefix: Annotated[str, DefaultOpt(["--shared-vpc-name-prefix"], type=str, help="Lookup shared VPC/VSwitch as {prefix}-{region} and {prefix}-{region}-{zone}; create dedicated resources if missing")] = os.environ.get("ALICLOUD_SHARED_VPC_NAME_PREFIX", ""),
+        spot: Annotated[bool, spot_opt()] = spot_from_env(),
         multi_vm: MultiVmStackSpec | None = None,
 ):
     if multi_vm is not None:
@@ -108,10 +109,16 @@ def resources_alicloud(
             image_name=image_name,
             availability_zone=availability_zone,
             shared_vpc_name_prefix=shared_vpc_name_prefix,
+            spot=spot,
             multi_vm=multi_vm,
         )
     # as this function might be called multiple times, and we change the values below, we must make sure we work on copies
     instance_opts = copy.deepcopy(instance_opts)
+    if spot:
+        # pulumi-alicloud: spot_strategy only applies when instance_charge_type is PostPaid
+        # (NoSpot | SpotWithPriceLimit | SpotAsPriceGo). SpotAsPriceGo = pay up to on-demand.
+        instance_opts.setdefault("instance_charge_type", "PostPaid")
+        instance_opts.setdefault("spot_strategy", "SpotAsPriceGo")
     sg_opts = copy.deepcopy(sg_opts)
     vpc_opts = copy.deepcopy(vpc_opts)
     vswitch_opts = copy.deepcopy(vswitch_opts)
@@ -313,9 +320,15 @@ def resources_alicloud_multi(
     image_name: str,
     availability_zone: str | None,
     shared_vpc_name_prefix: str,
+    spot: bool,
     multi_vm: MultiVmStackSpec,
 ):
     instance_opts = copy.deepcopy(instance_opts)
+    if spot:
+        # pulumi-alicloud: spot_strategy only applies when instance_charge_type is PostPaid
+        # (NoSpot | SpotWithPriceLimit | SpotAsPriceGo). SpotAsPriceGo = pay up to on-demand.
+        instance_opts.setdefault("instance_charge_type", "PostPaid")
+        instance_opts.setdefault("spot_strategy", "SpotAsPriceGo")
     sg_opts = copy.deepcopy(sg_opts)
     vpc_opts = copy.deepcopy(vpc_opts)
     vswitch_opts = copy.deepcopy(vswitch_opts)

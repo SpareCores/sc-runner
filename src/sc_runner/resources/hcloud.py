@@ -1,6 +1,6 @@
 from .. import DefaultOpt, JSON
 from .. import data
-from .base import StackName, default, defaults
+from .base import StackName, default, defaults, ensure_spot_supported, spot_from_env, spot_opt
 from .multi_vm import MultiVmStackSpec, build_server_user_data_b64, export_multi_vm_stack
 from typing import Annotated
 import click
@@ -20,8 +20,10 @@ def resources_hcloud(
         public_key: Annotated[str, DefaultOpt(["--public-key"], type=str, help="SSH public key")] = os.environ.get("SSH_PUBLIC_KEY", ""),
         instance_opts: Annotated[str, DefaultOpt(["--instance-opts"], type=JSON, default=defaults(DEFAULTS, "instance_opts"), help="Pulumi hcloud.Server options")] = default(DEFAULTS, "instance_opts"),
         user_data: Annotated[str | None, DefaultOpt(["--user-data"], type=str, help="Base64 encoded string with user_data script to run at boot")] = os.environ.get("USER_DATA", None),
+        spot: Annotated[bool, spot_opt()] = spot_from_env(),
         multi_vm: MultiVmStackSpec | None = None,
 ):
+    ensure_spot_supported("hcloud", spot)
     if multi_vm is not None:
         return resources_hcloud_multi(
             region=region,

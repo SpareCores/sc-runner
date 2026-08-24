@@ -8,7 +8,7 @@ import pulumi
 from pulumi import CustomTimeouts, ResourceOptions
 
 from .. import JSON, DefaultOpt, data
-from .base import StackName, default, defaults
+from .base import StackName, default, defaults, ensure_spot_supported, spot_from_env, spot_opt
 from .multi_vm import MultiVmStackSpec, build_server_user_data_b64, export_multi_vm_stack
 
 DEFAULTS = {
@@ -75,8 +75,10 @@ def resources_ovh(
             help="Base64 encoded string with user_data script to run at boot",
         ),
     ] = os.environ.get("USER_DATA", None),
+    spot: Annotated[bool, spot_opt()] = spot_from_env(),
     multi_vm: MultiVmStackSpec | None = None,
 ):
+    ensure_spot_supported("ovh", spot)
     if multi_vm is not None:
         return resources_ovh_multi(
             project_id=project_id,

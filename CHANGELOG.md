@@ -1,3 +1,10 @@
+# v0.0.75 (2026-08-24)
+
+- Cross-vendor `--spot` / `--no-spot` (env `SPOT`): easy Spot/preemptible switch
+  for aws, gcp, azure, alicloud. Vendor-specific JSON opts still override/extend
+  (`--instance-market-opts`, `--scheduling-opts`, alicloud `spot_strategy` via
+  `--instance-opts`). Unsupported vendors reject `--spot`.
+
 # v0.0.74 (2026-08-24)
 
 - AWS: optional Spot via `--instance-market-opts` / `AWS_INSTANCE_MARKET_OPTS`

@@ -2,7 +2,7 @@ import base64
 
 from .. import DefaultOpt, JSON
 from .. import data
-from .base import StackName, default, defaults
+from .base import StackName, default, defaults, spot_from_env, spot_opt
 from .gcp_dbaas import resources_gcp_dbaas
 from .managed_db import DbaasStackSpec
 from .multi_vm import MultiVmStackSpec, build_server_user_data_b64, export_multi_vm_stack
@@ -33,6 +33,18 @@ DEFAULTS = {
 def _gcp_provider(zone: str) -> gcp.Provider:
     return gcp.Provider(resource_name=zone, zone=zone, project=gcp_project_id())
 
+
+def _apply_gcp_spot(instance_opts: dict, spot: bool, scheduling_opts: dict) -> None:
+    """Apply --spot and/or --scheduling-opts. Explicit scheduling keys win."""
+    opts = copy.deepcopy(scheduling_opts) if scheduling_opts else {}
+    if spot:
+        opts.setdefault("preemptible", True)
+        opts.setdefault("automatic_restart", False)
+        opts.setdefault("on_host_maintenance", "TERMINATE")
+        opts.setdefault("provisioning_model", "SPOT")
+    if opts:
+        instance_opts["scheduling"] = gcp.compute.InstanceSchedulingArgs(**opts)
+
 def resources_gcp(
         zone: Annotated[str, DefaultOpt(["--zone"], type=click.Choice(data.zones("gcp")), help="Availability zone"), StackName()] = os.environ.get("GCP_ZONE", "us-east1-d"),
         instance: Annotated[str, DefaultOpt(["--instance"], type=click.Choice(data.servers("gcp")), help="Instance type"), StackName()] = os.environ.get("INSTANCE_TYPE", "e2-micro"),
@@ -41,7 +53,8 @@ def resources_gcp(
         instance_opts: Annotated[str, DefaultOpt(["--instance-opts"], type=JSON, default=defaults(DEFAULTS, "instance_opts"), help="Pulumi gcp.compute.Instance options")] = default(DEFAULTS, "instance_opts"),
         bootdisk_opts: Annotated[str, DefaultOpt(["--bootdisk-opts"], type=JSON, default=defaults(DEFAULTS, "bootdisk_opts"), help="Pulumi gcp.compute.InstanceBootDiskArgs options")] = default(DEFAULTS, "bootdisk_opts"),
         bootdisk_init_opts: Annotated[str, DefaultOpt(["--bootdisk-init-opts"], type=JSON, default=defaults(DEFAULTS, "bootdisk_init_opts"), help="Pulumi gcp.compute.InstanceBootDiskInitializeParamsArgs options")] = default(DEFAULTS, "bootdisk_init_opts"),
-        scheduling_opts: Annotated[str, DefaultOpt(["--scheduling-opts"], type=JSON, default=defaults(DEFAULTS, "scheduling_opts"), help="Pulumi gcp.compute.InstanceSchedulingArgs options")] = default(DEFAULTS, "scheduling_opts"),
+        scheduling_opts: Annotated[str, DefaultOpt(["--scheduling-opts"], type=JSON, default=defaults(DEFAULTS, "scheduling_opts"), help="Pulumi gcp.compute.InstanceSchedulingArgs options (overrides/extends --spot)")] = default(DEFAULTS, "scheduling_opts"),
+        spot: Annotated[bool, spot_opt()] = spot_from_env(),
         user_data: Annotated[str | None, DefaultOpt(["--user-data"], type=str, help="Base64 encoded string with user_data script to run at boot")] = os.environ.get("USER_DATA", None),
         disk_size: Annotated[int, DefaultOpt(["--disk-size"], type=int, help="Boot disk size in GiBs")] = int(os.environ.get("DISK_SIZE", 30)),
         multi_vm: MultiVmStackSpec | None = None,
@@ -65,6 +78,7 @@ def resources_gcp(
             bootdisk_opts=bootdisk_opts,
             bootdisk_init_opts=bootdisk_init_opts,
             scheduling_opts=scheduling_opts,
+            spot=spot,
             multi_vm=multi_vm,
         )
     if "zone" in instance_opts:
@@ -102,8 +116,7 @@ def resources_gcp(
             )
         ],
     )
-    if scheduling_opts:
-        instance_opts["scheduling"] = gcp.compute.InstanceSchedulingArgs(**scheduling_opts)
+    _apply_gcp_spot(instance_opts, spot, scheduling_opts)
     gcp.compute.Instance(
         instance,
         **instance_opts,
@@ -119,6 +132,7 @@ def resources_gcp_multi(
     bootdisk_opts: dict,
     bootdisk_init_opts: dict,
     scheduling_opts: dict,
+    spot: bool,
     multi_vm: MultiVmStackSpec,
 ):
     provider = _gcp_provider(zone)
@@ -160,8 +174,7 @@ def resources_gcp_multi(
         metadata = copy.deepcopy(common_instance_opts.get("metadata", {}))
         metadata["ssh-keys"] = f"ubuntu:{public_key}"
         common_instance_opts["metadata"] = metadata
-    if scheduling_opts:
-        common_instance_opts["scheduling"] = gcp.compute.InstanceSchedulingArgs(**scheduling_opts)
+    _apply_gcp_spot(common_instance_opts, spot, scheduling_opts)
 
     def vm_opts(instance_type: str, user_data_b64: pulumi.Input[str], disk_gib: int, disk_type: str | None = None):
         opts = copy.deepcopy(common_instance_opts)

@@ -1,6 +1,6 @@
 from .. import DefaultOpt, JSON
 from .. import data
-from .base import StackName, default, defaults
+from .base import StackName, default, defaults, ensure_spot_supported, spot_from_env, spot_opt
 from .multi_vm import MultiVmStackSpec, build_server_user_data_b64, export_multi_vm_stack
 from functools import lru_cache
 from typing import Annotated
@@ -99,8 +99,10 @@ def resources_vultr(
         int,
         DefaultOpt(["--disk-size"], type=int, help="Minimum bundled storage in GiB for block-only VX1 plans"),
     ] = int(os.environ.get("DISK_SIZE", 30)),
+    spot: Annotated[bool, spot_opt()] = spot_from_env(),
     multi_vm: MultiVmStackSpec | None = None,
 ):
+    ensure_spot_supported("vultr", spot)
     if multi_vm is not None:
         return resources_vultr_multi(
             region=region,

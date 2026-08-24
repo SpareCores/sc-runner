@@ -1,6 +1,6 @@
 from .. import DefaultOpt, JSON
 from .. import data
-from .base import StackName, default, defaults
+from .base import StackName, default, defaults, spot_from_env, spot_opt
 from .azure_dbaas import resources_azure_dbaas
 from .managed_db import DbaasStackSpec
 from .multi_vm import MultiVmStackSpec, build_server_user_data_b64, export_multi_vm_stack
@@ -9,6 +9,7 @@ import click
 import os
 import pulumi
 from pulumi_azure_native.compute import (
+    BillingProfileArgs,
     CreationDataArgs,
     Disk,
     DiskSkuArgs,
@@ -202,6 +203,16 @@ def _server_os_disk(
         )
     return _os_disk_from_image(disk_gib=disk_gib, disk_type=disk_type), False
 
+
+def _apply_azure_spot(vmopts: dict, spot: bool) -> None:
+    """Map --spot onto azure-native VirtualMachine priority/eviction/billing."""
+    if not spot:
+        return
+    vmopts.setdefault("priority", "Spot")
+    vmopts.setdefault("eviction_policy", "Delete")
+    vmopts.setdefault("billing_profile", BillingProfileArgs(max_price=-1))
+
+
 def resources_azure(
         region: Annotated[str, DefaultOpt(["--region"], type=click.Choice(data.regions("azure")), help="Region"), StackName()] = os.environ.get("AZURE_REGION", "westeurope"),
         zone: Annotated[str, DefaultOpt(["--zone"], type=click.Choice(sorted(set(data.zones("azure")))), help="Availability zone"), StackName()] = os.environ.get("AZURE_ZONE", None),
@@ -223,6 +234,7 @@ def resources_azure(
         disk_type: Annotated[str | None, DefaultOpt(["--disk-type"], type=str, help="Managed OS disk storage account type (e.g. Standard_LRS, Premium_LRS, PremiumV2_LRS)")] = os.environ.get("DISK_TYPE") or None,
         disk_iops: Annotated[int | None, DefaultOpt(["--disk-iops"], type=int, help="Provisioned OS disk IOPS (PremiumV2_LRS / UltraSSD_LRS)")] = int(os.environ["DISK_IOPS"]) if os.environ.get("DISK_IOPS") else None,
         disk_throughput: Annotated[int | None, DefaultOpt(["--disk-throughput"], type=int, help="Provisioned OS disk throughput in MB/s (PremiumV2_LRS / UltraSSD_LRS)")] = int(os.environ["DISK_THROUGHPUT"]) if os.environ.get("DISK_THROUGHPUT") else None,
+        spot: Annotated[bool, spot_opt()] = spot_from_env(),
         multi_vm: MultiVmStackSpec | None = None,
         dbaas: DbaasStackSpec | None = None,
 ):
@@ -254,6 +266,7 @@ def resources_azure(
             vnet_opts=vnet_opts,
             subnet_opts=subnet_opts,
             publicip_opts=publicip_opts,
+            spot=spot,
             multi_vm=multi_vm,
         )
     # Auto-detect image SKU based on instance architecture if not provided
@@ -369,6 +382,7 @@ def resources_azure(
     )
     if zone is not None:
         vmopts["zones"] = [zone]
+    _apply_azure_spot(vmopts, spot)
     VirtualMachine(instance, **vmopts)
 
 
@@ -385,6 +399,7 @@ def resources_azure_multi(
     vnet_opts: dict,
     subnet_opts: dict,
     publicip_opts: dict,
+    spot: bool,
     multi_vm: MultiVmStackSpec,
 ):
     if image_sku is None:
@@ -479,6 +494,7 @@ def resources_azure_multi(
     )
     if zone is not None:
         client_vmopts["zones"] = [zone]
+    _apply_azure_spot(client_vmopts, spot)
     client_vm = VirtualMachine(client_name, **client_vmopts)
 
     client_private_ip = client_nic.ip_configurations.apply(
@@ -564,6 +580,7 @@ def resources_azure_multi(
     )
     if zone is not None:
         server_vmopts["zones"] = [zone]
+    _apply_azure_spot(server_vmopts, spot)
     server_vm = VirtualMachine(server_name, opts=pulumi.ResourceOptions(depends_on=[client_vm]), **server_vmopts)
 
     db_private_ip = server_nic.ip_configurations.apply(
