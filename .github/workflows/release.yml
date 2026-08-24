@@ -53,6 +53,12 @@ jobs:
           VERSION: ${{ needs.version.outputs.version }}
         run: |
           set -euo pipefail
+          # Give PyPI's CDN a moment before the first probe: hitting the simple
+          # index / JSON API right as the tag lands risks a cached "not found"
+          # response that then lingers (negative caching) and makes the later
+          # wait-pypi polling loop miss a just-published release for longer
+          # than expected.
+          sleep 10
           if curl -fsS "https://pypi.org/pypi/sparecores-runner/json" \
             | python3 -c "import json,sys,os; releases=json.load(sys.stdin).get('releases',{}); sys.exit(0 if os.environ['VERSION'] in releases and releases[os.environ['VERSION']] else 1)"; then
             echo "already_published=true" >> "$GITHUB_OUTPUT"
