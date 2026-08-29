@@ -181,6 +181,25 @@ def _prune_custom_resources_from_state(stack, stack_opts) -> bool:
     return True
 
 
+class PendingOperationsError(Exception):
+    """The stack still has pending (interrupted create/update/delete) operations after destroy.
+
+    `pulumi destroy` does not fail or raise for these - a resource whose Create was
+    interrupted before the provider ever confirmed it (e.g. the process was killed
+    mid-call) has no confirmed state, so destroy has nothing to act on and silently
+    leaves it as a "pending operation" warning. If the caller removes the stack
+    anyway, that pending-operation record - the only lead back to a possibly-real
+    cloud resource - is gone for good, and the resource itself (if the provider
+    call actually succeeded before the interruption) is orphaned with no tracking
+    left anywhere. Surface this instead of finalizing the removal.
+    """
+
+
+def _pending_operations(stack) -> list:
+    deployment = stack.export_stack().deployment or {}
+    return deployment.get("pending_operations") or deployment.get("pendingOperations") or []
+
+
 def _destroy_stack(stack, stack_opts) -> bool:
     """Destroy stack resources. Returns True if stack removal should use --force."""
     on_output = stack_opts.get("on_output", print)
@@ -222,6 +241,13 @@ def destroy_stack(vendor, pulumi_opts, resource_opts, stack_opts=dict(on_output=
     stack = pulumi_stack(lambda: None, **pulumi_opts)
     _refresh_stack(stack, stack_opts)
     force_remove = _destroy_stack(stack, stack_opts)
+    pending = _pending_operations(stack)
+    if pending:
+        raise PendingOperationsError(
+            f"Refusing to remove stack {stack.name}: {len(pending)} pending operation(s) "
+            f"remain after destroy - a resource may have been left orphaned outside Pulumi's "
+            f"tracking: {pending}"
+        )
     stack.workspace.remove_stack(stack.name, force=force_remove)
 
 
