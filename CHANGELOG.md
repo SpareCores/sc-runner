@@ -1,4 +1,4 @@
-# v0.0.76 (2026-09-10)
+# v0.0.77 (2026-09-10)
 
 - Add OVH / UpCloud / Vultr managed Postgres DBaaS stacks (private network +
   companion client VM), wired via `dbaas=` / `dbaas_slug` like AWS/Azure/GCP
@@ -7,6 +7,12 @@
 - Bind `SC_DB_PORT` into DBaaS client user-data on all vendors; OVH instance
   IPv4 export classifies public vs private without relying on a missing
   `InstanceAddress.public` field
+
+# v0.0.76 (2026-09-10)
+
+- Refuse to remove a Pulumi stack after destroy when pending operations remain,
+  so interrupted creates are not silently untracked
+- Retry helper: brief sleep before destroy retry paths
 
 # v0.0.75 (2026-08-24)
 
