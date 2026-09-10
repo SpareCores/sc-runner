@@ -1,6 +1,7 @@
 from .. import DefaultOpt, JSON
 from .. import data
 from .base import StackName, default, defaults, ensure_spot_supported, spot_from_env, spot_opt
+from .managed_db import DbaasStackSpec
 from .multi_vm import MultiVmStackSpec, build_server_user_data_b64, export_multi_vm_stack
 from functools import lru_cache
 from typing import Annotated
@@ -100,9 +101,28 @@ def resources_vultr(
         DefaultOpt(["--disk-size"], type=int, help="Minimum bundled storage in GiB for block-only VX1 plans"),
     ] = int(os.environ.get("DISK_SIZE", 30)),
     spot: Annotated[bool, spot_opt()] = spot_from_env(),
+    dbaas_slug: Annotated[
+        str | None,
+        DefaultOpt(["--dbaas-slug"], type=str, help="DBaaS stack slug (cache-tier provision)"),
+        StackName(),
+    ] = os.environ.get("DBAAS_SLUG", None),
     multi_vm: MultiVmStackSpec | None = None,
+    dbaas: DbaasStackSpec | None = None,
 ):
     ensure_spot_supported("vultr", spot)
+    if dbaas is not None:
+        from .vultr_dbaas import resources_vultr_dbaas
+
+        return resources_vultr_dbaas(
+            region=region,
+            public_key=public_key,
+            tags=tags,
+            instance_opts=instance_opts,
+            provider_opts=provider_opts,
+            os_name=os_name,
+            disk_size=disk_size,
+            dbaas=dbaas,
+        )
     if multi_vm is not None:
         return resources_vultr_multi(
             region=region,

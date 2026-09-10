@@ -1,3 +1,13 @@
+# v0.0.76 (2026-09-10)
+
+- Add OVH / UpCloud / Vultr managed Postgres DBaaS stacks (private network +
+  companion client VM), wired via `dbaas=` / `dbaas_slug` like AWS/Azure/GCP
+- `data.companion_region()`: pick a same-city (else nearest) compute region with
+  ACTIVE ONDEMAND server prices for DBaaS catalog codes (e.g. GRA → GRA11)
+- Bind `SC_DB_PORT` into DBaaS client user-data on all vendors; OVH instance
+  IPv4 export classifies public vs private without relying on a missing
+  `InstanceAddress.public` field
+
 # v0.0.75 (2026-08-24)
 
 - Cross-vendor `--spot` / `--no-spot` (env `SPOT`): easy Spot/preemptible switch

@@ -1,4 +1,5 @@
 import base64
+import ipaddress
 import os
 from typing import Annotated
 
@@ -9,6 +10,7 @@ from pulumi import CustomTimeouts, ResourceOptions
 
 from .. import JSON, DefaultOpt, data
 from .base import StackName, default, defaults, ensure_spot_supported, spot_from_env, spot_opt
+from .managed_db import DbaasStackSpec
 from .multi_vm import MultiVmStackSpec, build_server_user_data_b64, export_multi_vm_stack
 
 DEFAULTS = {
@@ -28,6 +30,58 @@ def find_resource_id(items, name: str, resource_type: str, region: str) -> str:
         )
     return resource_id
 
+
+def _addr_ip(addr) -> str | None:
+    return getattr(addr, "ip", None) or (addr.get("ip") if isinstance(addr, dict) else None)
+
+
+def _addr_version(addr) -> int | None:
+    ver = getattr(addr, "version", None)
+    if ver is None and isinstance(addr, dict):
+        ver = addr.get("version")
+    return int(ver) if ver is not None else None
+
+
+def _addr_is_public(addr) -> bool | None:
+    """Return True/False when the provider exposes public; else None."""
+    if hasattr(addr, "public"):
+        return bool(addr.public)
+    if isinstance(addr, dict) and "public" in addr:
+        return bool(addr["public"])
+    return None
+
+
+def _ip_is_private(ip: str) -> bool:
+    try:
+        return ipaddress.ip_address(ip).is_private
+    except ValueError:
+        return False
+
+
+def instance_ipv4(instance_obj, *, public: bool):
+    """Pick a public or private IPv4 from an OVH Instance.addresses Output.
+
+    pulumi-ovh InstanceAddress only documents ``ip`` + ``version`` (no ``public``
+    flag), so we fall back to RFC1918 classification when needed.
+    """
+
+    def _pick(addrs):
+        for a in addrs or []:
+            if _addr_version(a) not in (4, None):
+                continue
+            ip = _addr_ip(a)
+            if not ip:
+                continue
+            flagged = _addr_is_public(a)
+            if flagged is not None:
+                if flagged == public:
+                    return ip
+                continue
+            if _ip_is_private(ip) != public:
+                return ip
+        return ""
+
+    return instance_obj.addresses.apply(_pick)
 
 def resources_ovh(
     project_id: Annotated[
@@ -75,10 +129,33 @@ def resources_ovh(
             help="Base64 encoded string with user_data script to run at boot",
         ),
     ] = os.environ.get("USER_DATA", None),
+    # Accepted for DBaaS/inspector parity with other vendors; OVH uses instance_opts ssh_key.
+    public_key: Annotated[
+        str,
+        DefaultOpt(["--public-key"], type=str, help="Unused on OVH (pass ssh_key via instance-opts)"),
+    ] = os.environ.get("SSH_PUBLIC_KEY", ""),
     spot: Annotated[bool, spot_opt()] = spot_from_env(),
+    dbaas_slug: Annotated[
+        str | None,
+        DefaultOpt(["--dbaas-slug"], type=str, help="DBaaS stack slug (cache-tier provision)"),
+        StackName(),
+    ] = os.environ.get("DBAAS_SLUG", None),
     multi_vm: MultiVmStackSpec | None = None,
+    dbaas: DbaasStackSpec | None = None,
+    client_region: str | None = None,
 ):
     ensure_spot_supported("ovh", spot)
+    if dbaas is not None:
+        from .ovh_dbaas import resources_ovh_dbaas
+
+        return resources_ovh_dbaas(
+            project_id=project_id,
+            region=region,
+            image_name=image_name,
+            instance_opts=instance_opts,
+            dbaas=dbaas,
+            client_region=client_region,
+        )
     if multi_vm is not None:
         return resources_ovh_multi(
             project_id=project_id,
@@ -189,14 +266,10 @@ def resources_ovh_multi(
     )
 
     def instance_private_ip(instance_obj):
-        return instance_obj.addresses.apply(
-            lambda addrs: next((a.ip for a in addrs if a.version == 4 and not a.public), "")
-        )
+        return instance_ipv4(instance_obj, public=False)
 
     def instance_public_ip(instance_obj):
-        return instance_obj.addresses.apply(
-            lambda addrs: next((a.ip for a in addrs if a.version == 4 and a.public), "")
-        )
+        return instance_ipv4(instance_obj, public=True)
 
     server_user_data_b64 = build_server_user_data_b64(multi_vm, instance_private_ip(client))
     server = ovh.cloudproject.Instance(

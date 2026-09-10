@@ -8,6 +8,7 @@ import pulumi_upcloud as upcloud
 
 from .. import JSON, DefaultOpt, data
 from .base import StackName, default, defaults, ensure_spot_supported, spot_from_env, spot_opt
+from .managed_db import DbaasStackSpec
 from .multi_vm import MultiVmStackSpec, build_server_user_data_b64, export_multi_vm_stack
 
 DEFAULTS = {
@@ -63,9 +64,24 @@ def resources_upcloud(
         ),
     ] = default(DEFAULTS, "instance_opts"),
     spot: Annotated[bool, spot_opt()] = spot_from_env(),
+    dbaas_slug: Annotated[
+        str | None,
+        DefaultOpt(["--dbaas-slug"], type=str, help="DBaaS stack slug (cache-tier provision)"),
+        StackName(),
+    ] = os.environ.get("DBAAS_SLUG", None),
     multi_vm: MultiVmStackSpec | None = None,
+    dbaas: DbaasStackSpec | None = None,
 ):
     ensure_spot_supported("upcloud", spot)
+    if dbaas is not None:
+        from .upcloud_dbaas import resources_upcloud_dbaas
+
+        return resources_upcloud_dbaas(
+            region=region,
+            public_key=public_key,
+            instance_opts=instance_opts,
+            dbaas=dbaas,
+        )
     if multi_vm is not None:
         return resources_upcloud_multi(
             region=region,

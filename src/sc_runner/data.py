@@ -12,6 +12,9 @@ _DBAAS_STANDALONE_PRICE_HA = {
     "aws": "SINGLE_ZONE",
     "azure": "NONE",
     "gcp": "NONE",
+    "ovh": "NONE",
+    "upcloud": "NONE",
+    "vultr": "NONE",
 }
 
 
@@ -112,6 +115,74 @@ def sort_by_price(keys: list[str], prices: dict[str, float]) -> list[str]:
     return sorted(keys, key=lambda key: (prices.get(key, float("inf")), key))
 
 
+def companion_region(vendor: str, region: str) -> str:
+    """Pick a compute region for a DBaaS (or other) catalog region.
+
+    Prefer the region itself when it has ACTIVE ONDEMAND server prices; otherwise
+    another ACTIVE region in the same city with compute; otherwise the nearest
+    region (by lat/lon) that has compute.
+    """
+    stmt = text(
+        """
+        WITH priced AS (
+            SELECT DISTINCT r.region_id, r.api_reference, r.city, r.lon, r.lat
+            FROM region AS r
+            JOIN server_price AS sp
+              ON sp.vendor_id = r.vendor_id
+             AND sp.region_id = r.region_id
+            WHERE r.vendor_id = :vendor
+              AND r.status = 'ACTIVE'
+              AND sp.status = 'ACTIVE'
+              AND sp.allocation = 'ONDEMAND'
+        ),
+        base AS (
+            SELECT region_id, api_reference, city, lon, lat
+            FROM region
+            WHERE vendor_id = :vendor
+              AND status = 'ACTIVE'
+              AND (api_reference = :region OR region_id = :region)
+            LIMIT 1
+        )
+        SELECT
+            CASE
+                WHEN EXISTS (
+                    SELECT 1 FROM priced p JOIN base b ON p.api_reference = b.api_reference
+                ) THEN (SELECT api_reference FROM base)
+                WHEN EXISTS (
+                    SELECT 1 FROM priced p JOIN base b
+                      ON p.city IS NOT NULL AND b.city IS NOT NULL AND p.city = b.city
+                ) THEN (
+                    SELECT p.api_reference
+                    FROM priced p
+                    JOIN base b ON p.city = b.city
+                    ORDER BY p.api_reference
+                    LIMIT 1
+                )
+                ELSE (
+                    SELECT p.api_reference
+                    FROM priced p
+                    JOIN base b ON b.lon IS NOT NULL AND b.lat IS NOT NULL
+                               AND p.lon IS NOT NULL AND p.lat IS NOT NULL
+                    ORDER BY
+                        ((p.lon - b.lon) * (p.lon - b.lon)
+                         + (p.lat - b.lat) * (p.lat - b.lat)),
+                        p.api_reference
+                    LIMIT 1
+                )
+            END AS companion
+        """
+    )
+    with _engine.connect() as conn:
+        row = conn.execute(stmt, {"vendor": vendor, "region": region}).one()
+    companion = row[0]
+    if not companion:
+        raise ValueError(
+            f"No companion compute region for {vendor}/{region} "
+            "(no ACTIVE ONDEMAND server prices nearby)"
+        )
+    return companion
+
+
 def database_region_prices(
     vendor: str,
     database_id: str,
@@ -124,6 +195,8 @@ def database_region_prices(
     ``ha`` defaults to the vendor's standalone price HA key (AWS: SINGLE_ZONE).
     """
     price_ha = ha or _DBAAS_STANDALONE_PRICE_HA.get(vendor, "NONE")
+    # Vultr (and some crawls) store database_price.region_id in a different case
+    # than region.region_id; join case-insensitively.
     stmt = text(
         """
         SELECT r.api_reference, dp.price
@@ -133,7 +206,7 @@ def database_region_prices(
          AND d.database_id = dp.database_id
         JOIN region AS r
           ON r.vendor_id = dp.vendor_id
-         AND r.region_id = dp.region_id
+         AND LOWER(r.region_id) = LOWER(dp.region_id)
         WHERE dp.vendor_id = :vendor
           AND (d.database_id = :database_id OR d.api_reference = :database_id)
           AND d.status = 'ACTIVE'

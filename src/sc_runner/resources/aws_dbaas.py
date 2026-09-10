@@ -222,6 +222,7 @@ def resources_aws_dbaas(
 
     default_bindings = {
         "SC_DB_HOST": ("db", "fqdn"),
+        "SC_DB_PORT": ("db", "port"),
         "SC_DB_PASSWORD": ("db", "password"),
     }
     if dbaas.client_user_data_b64 and not (
@@ -243,6 +244,7 @@ def resources_aws_dbaas(
     )
     db_sources = {
         ("db", "fqdn"): pg.address,
+        ("db", "port"): "5432",
         ("db", "password"): admin_password,
     }
     client_user_data = build_user_data_b64(client_vm_spec, sources=db_sources)
