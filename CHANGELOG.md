@@ -1,3 +1,9 @@
+# v0.0.78 (2026-09-11)
+
+- OVH DBaaS: assign a deterministic per-stack `vlan_id` (2–4000) on the private
+  network so concurrent/leftover stacks do not collide on the project's single
+  vlan-less (`vlan_id=0`) network
+
 # v0.0.77 (2026-09-10)
 
 - Add OVH / UpCloud / Vultr managed Postgres DBaaS stacks (private network +
