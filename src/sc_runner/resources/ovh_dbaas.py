@@ -43,15 +43,24 @@ def _sanitize_name(slug: str) -> str:
     return (raw or "sc-dbaas")[:63]
 
 
-def _vlan_id_for_slug(slug: str) -> int:
-    """Deterministic non-zero VLAN id for this stack's private network.
+def _vlan_id_for_stack(
+    slug: str,
+    db_region: str,
+    client_region: str,
+    client_instance: str,
+) -> int:
+    """Deterministic non-zero VLAN id for one DBaaS/client stack.
 
     OVH allows only one vlan-less (``vlan_id=0``) private network per cloud
-    project, so every stack must get its own tagged VLAN or concurrent/leftover
-    stacks collide with ``FlexDiskSizeNotMultiple``-style "network already
-    exists for this vlan ID" errors. Valid range is 2-4000 (0 and 1 reserved).
+    project and VLAN IDs are project-wide. Include the DB region, compute
+    region, and client flavor: inspector tries each combination in a distinct
+    Pulumi stack, so hashing only ``slug`` made all of them request the same
+    VLAN and collide with a successful or orphaned earlier candidate.
+
+    Valid range is 2-4000 (0 and 1 reserved).
     """
-    return 2 + (zlib.crc32(slug.encode()) % 3999)
+    identity = "\0".join((slug, db_region, client_region, client_instance))
+    return 2 + (zlib.crc32(identity.encode()) % 3999)
 
 
 def resources_ovh_dbaas(
@@ -97,12 +106,20 @@ def resources_ovh_dbaas(
 
     # Catalog DBaaS codes (GRA, BHS, …) are invalid for NetworkPrivate; only the
     # companion OpenStack region is registered on the vRack network.
+    network_name = (
+        f"sc-runner-{slug}-{region}-{vm_region}-{dbaas.client_instance}"
+    )[:255]
     private_network = ovh.cloudproject.NetworkPrivate(
         slug,
         service_name=project_id,
-        name=f"sc-runner-{slug}",
+        name=network_name,
         regions=[vm_region],
-        vlan_id=_vlan_id_for_slug(slug),
+        vlan_id=_vlan_id_for_stack(
+            slug,
+            region,
+            vm_region,
+            dbaas.client_instance,
+        ),
     )
     subnet = ovh.cloudproject.NetworkPrivateSubnet(
         f"{slug}-net",

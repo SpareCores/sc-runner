@@ -1,3 +1,12 @@
+# v0.0.84 (2026-09-11)
+
+- OVH DBaaS: derive the project-wide VLAN ID from the full candidate identity
+  (DB region, compute region, and client flavor), rather than only the database
+  tier slug. Distinct Pulumi stacks no longer all collide with the same active
+  or orphaned inspector network
+- Include the candidate identity in OVH private-network names to make ownership
+  and future cleanup unambiguous
+
 # v0.0.83 (2026-09-11)
 
 - Vultr DBaaS/multi-VM and Hetzner multi-VM: pass plaintext `user_data` too.
