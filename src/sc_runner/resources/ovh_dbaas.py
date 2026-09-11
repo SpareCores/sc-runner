@@ -8,6 +8,7 @@ the internal path.
 
 from __future__ import annotations
 
+from hashlib import sha256
 import re
 import secrets
 import string
@@ -59,6 +60,7 @@ def resources_ovh_dbaas(
     region: str,
     image_name: str,
     instance_opts: dict,
+    public_key: str,
     dbaas: DbaasStackSpec,
     client_region: str | None = None,
 ) -> None:
@@ -71,6 +73,19 @@ def resources_ovh_dbaas(
     md = dbaas.managed_db
     slug = _sanitize_name(dbaas.instance_key_slug or "dbaas")
     instance_opts = dict(instance_opts)
+    if "ssh_key" not in instance_opts and "ssh_key_create" not in instance_opts:
+        if not public_key.strip():
+            raise ValueError(
+                "OVH companion VM requires SSH_PUBLIC_KEY, or instance_opts with "
+                "ssh_key/ssh_key_create"
+            )
+        # Stack-specific names avoid collisions when inspector provisions
+        # several DBaaS clients concurrently with the same public key.
+        key_fingerprint = sha256(public_key.strip().encode()).hexdigest()[:12]
+        instance_opts["ssh_key_create"] = {
+            "name": f"sc-{slug[:32]}-{key_fingerprint}",
+            "public_key": public_key.strip(),
+        }
     vm_region = client_region or ovh_compute_region(region)
 
     flavors = ovh.cloudproject.get_flavors(service_name=project_id)

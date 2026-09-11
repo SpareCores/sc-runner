@@ -129,10 +129,14 @@ def resources_ovh(
             help="Base64 encoded string with user_data script to run at boot",
         ),
     ] = os.environ.get("USER_DATA", None),
-    # Accepted for DBaaS/inspector parity with other vendors; OVH uses instance_opts ssh_key.
+    # OVH requires either ssh_key or ssh_key_create on every instance.
     public_key: Annotated[
         str,
-        DefaultOpt(["--public-key"], type=str, help="Unused on OVH (pass ssh_key via instance-opts)"),
+        DefaultOpt(
+            ["--public-key"],
+            type=str,
+            help="SSH public key used by OVH ssh_key_create unless instance_opts supplies a key",
+        ),
     ] = os.environ.get("SSH_PUBLIC_KEY", ""),
     spot: Annotated[bool, spot_opt()] = spot_from_env(),
     dbaas_slug: Annotated[
@@ -153,6 +157,7 @@ def resources_ovh(
             region=region,
             image_name=image_name,
             instance_opts=instance_opts,
+            public_key=public_key,
             dbaas=dbaas,
             client_region=client_region,
         )

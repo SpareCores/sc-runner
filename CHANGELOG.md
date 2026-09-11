@@ -1,3 +1,9 @@
+# v0.0.80 (2026-09-11)
+
+- OVH DBaaS: when inspector only passes `SSH_PUBLIC_KEY` (no `instance_opts`),
+  create the companion VM with `ssh_key_create` so Pulumi no longer fails with
+  "one of ssh_key,ssh_key_create must be specified"
+
 # v0.0.79 (2026-09-11)
 
 - OVH DBaaS: clamp `disk_size` to sc-data flavor bounds

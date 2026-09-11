@@ -84,8 +84,6 @@ def main() -> int:
         "public_key": PUBKEY,
         "dbaas_slug": SLUG,
         "dbaas": _build_spec(),
-        # OVH compute stacks often pass an SSH key name already registered.
-        "instance_opts": {"ssh_key": {"name": "spare-cores"}},
     }
     if CLIENT_REGION:
         resource_opts["client_region"] = CLIENT_REGION
