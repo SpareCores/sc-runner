@@ -132,7 +132,16 @@ def resources_ovh_dbaas(
         ),
     )
     if md.storage_gib:
-        pg_kwargs["disk_size"] = int(md.storage_gib)
+        disk = int(md.storage_gib)
+        floor, ceiling = data.database_storage_bounds("ovh", md.native_id)
+        if floor:
+            disk = max(disk, floor)
+        # OVH flex disk sizes must be multiples of 10 GiB.
+        disk = -(-disk // 10) * 10
+        if floor and ceiling is not None:
+            disk = min(disk, ceiling)
+            disk = max((disk // 10) * 10, floor)
+        pg_kwargs["disk_size"] = disk
 
     pg = ovh.cloudproject.Database(slug, **pg_kwargs)
 

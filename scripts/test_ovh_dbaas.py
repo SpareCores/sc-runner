@@ -31,6 +31,7 @@ DB_FLAVOR = os.environ.get("OVH_DB_FLAVOR", "db1-4")
 CLIENT_INSTANCE = os.environ.get("CLIENT_INSTANCE", "d2-2")
 CLIENT_REGION = os.environ.get("OVH_CLIENT_REGION")  # default: sc-data companion_region
 ENGINE_VERSION = os.environ.get("OVH_ENGINE_VERSION", "18")
+STORAGE_GIB = int(os.environ.get("OVH_STORAGE_GIB", "80"))
 SLUG = os.environ.get("DBAAS_SLUG", "ovhtest-pg18")
 PROJECT_ID = os.environ.get("OVH_CLOUD_PROJECT_SERVICE") or os.environ.get(
     "OVH_PROJECT_ID"
@@ -48,7 +49,7 @@ def _build_spec() -> DbaasStackSpec:
         sku_name=DB_FLAVOR,
         sku_tier=DB_PLAN,
         ha_mode="standalone",
-        storage_gib=80,
+        storage_gib=STORAGE_GIB,
         admin_login="avnadmin",
         database_name="bench",
     )

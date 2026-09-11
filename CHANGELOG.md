@@ -1,3 +1,10 @@
+# v0.0.79 (2026-09-11)
+
+- OVH DBaaS: clamp `disk_size` to sc-data flavor bounds
+  (`storage_size` … `storage_size + storage_extra_max`) and round to a multiple
+  of 10 GiB, avoiding `FlexDiskSizeInvalid` when schema sizing is below the
+  flavor floor (e.g. discovery b3-16 needs ≥320 GiB)
+
 # v0.0.78 (2026-09-11)
 
 - OVH DBaaS: assign a deterministic per-stack `vlan_id` (2–4000) on the private

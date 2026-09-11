@@ -183,6 +183,34 @@ def companion_region(vendor: str, region: str) -> str:
     return companion
 
 
+def database_storage_bounds(vendor: str, database_id: str) -> tuple[int | None, int | None]:
+    """Return (min_gib, max_gib) for a managed DB SKU from sc-data.
+
+    ``min_gib`` is ``database.storage_size``; ``max_gib`` is
+    ``storage_size + storage_extra_max`` when both are present.
+    """
+    stmt = text(
+        """
+        SELECT storage_size, storage_extra_max
+        FROM database
+        WHERE vendor_id = :vendor
+          AND (database_id = :database_id OR api_reference = :database_id)
+          AND status = 'ACTIVE'
+        LIMIT 1
+        """
+    )
+    with _engine.connect() as conn:
+        row = conn.execute(
+            stmt, {"vendor": vendor, "database_id": database_id}
+        ).one_or_none()
+    if not row or row[0] is None:
+        return None, None
+    floor = int(row[0])
+    extra = row[1]
+    ceiling = floor + int(extra) if extra is not None else None
+    return floor, ceiling
+
+
 def database_region_prices(
     vendor: str,
     database_id: str,
