@@ -131,13 +131,19 @@ jobs:
           # Resolve into a throwaway venv: ubuntu-latest's system Python is PEP 668
           # externally managed, so `uv pip install --python $(which python3)` fails
           # immediately with that error (seen on 0.0.70) and never tests PyPI.
+          # Both probes must bypass caches. PyPI's simple index is served with
+          # `max-age=600`, so the first uv attempt (which usually still predates
+          # propagation) would otherwise pin a stale index for longer than this
+          # whole loop runs, reporting "no version of sparecores-runner==X" on
+          # every later attempt until timeout while a rerun succeeds instantly
+          # (seen on 0.0.79, 0.0.81 and 0.0.82).
           python3 -m pip install --user -q uv
           export PATH="$HOME/.local/bin:$PATH"
           uv venv /tmp/pypi-probe
           for attempt in $(seq 1 36); do
-            if curl -fsS "https://pypi.org/pypi/sparecores-runner/json" \
+            if curl -fsS -H 'Cache-Control: no-cache' "https://pypi.org/pypi/sparecores-runner/json" \
               | python3 -c "import json,sys,os; releases=json.load(sys.stdin).get('releases',{}); sys.exit(0 if os.environ['VERSION'] in releases and releases[os.environ['VERSION']] else 1)" \
-              && uv pip install --python /tmp/pypi-probe/bin/python --dry-run "sparecores-runner==${VERSION}"; then
+              && uv pip install --no-cache --python /tmp/pypi-probe/bin/python --dry-run "sparecores-runner==${VERSION}"; then
               echo "sparecores-runner==${VERSION} is installable from PyPI (attempt ${attempt})"
               exit 0
             fi
