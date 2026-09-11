@@ -134,6 +134,10 @@ def resources_ovh_dbaas(
         flavor=flavor,
         description=slug,
         deletion_protection=False,
+        # OVH denies all clients until at least one CIDR is authorized.
+        ip_restrictions=[
+            {"description": "sc-runner private vpc", "ip": PRIVATE_CIDR},
+        ],
         nodes=[
             {
                 "region": region,

@@ -1,3 +1,8 @@
+# v0.0.81 (2026-09-11)
+
+- OVH DBaaS: authorize the private VPC CIDR (`10.1.0.0/24`) via `ip_restrictions`
+  so the companion can reach Postgres (OVH denies all clients until a CIDR is set)
+
 # v0.0.80 (2026-09-11)
 
 - OVH DBaaS: when inspector only passes `SSH_PUBLIC_KEY` (no `instance_opts`),
