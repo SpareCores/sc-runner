@@ -1,7 +1,12 @@
 from .. import DefaultOpt, JSON
 from .. import data
 from .base import StackName, default, defaults, ensure_spot_supported, spot_from_env, spot_opt
-from .multi_vm import MultiVmStackSpec, build_server_user_data_b64, export_multi_vm_stack
+from .multi_vm import (
+    MultiVmStackSpec,
+    build_server_user_data_b64,
+    export_multi_vm_stack,
+    user_data_plaintext,
+)
 from typing import Annotated
 import click
 import copy
@@ -95,7 +100,7 @@ def resources_hcloud_multi(
         image="ubuntu-24.04",
         server_type=multi_vm.client_instance,
         location=data.hcloud_location(region),
-        user_data=multi_vm.client_user_data_b64,
+        user_data=user_data_plaintext(multi_vm.client_user_data_b64),
         ssh_keys=ssh_keys,
         **instance_opts,
     )
@@ -112,7 +117,7 @@ def resources_hcloud_multi(
         image="ubuntu-24.04",
         server_type=multi_vm.db_instance,
         location=data.hcloud_location(region),
-        user_data=server_user_data_b64,
+        user_data=user_data_plaintext(server_user_data_b64),
         ssh_keys=ssh_keys,
         opts=pulumi.ResourceOptions(depends_on=[client]),
         **instance_opts,

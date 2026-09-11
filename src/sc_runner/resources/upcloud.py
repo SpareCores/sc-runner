@@ -1,4 +1,3 @@
-import base64
 import copy
 import os
 import zlib
@@ -11,7 +10,12 @@ import pulumi_upcloud as upcloud
 from .. import JSON, DefaultOpt, data
 from .base import StackName, default, defaults, ensure_spot_supported, spot_from_env, spot_opt
 from .managed_db import DbaasStackSpec
-from .multi_vm import MultiVmStackSpec, build_server_user_data_b64, export_multi_vm_stack
+from .multi_vm import (
+    MultiVmStackSpec,
+    build_server_user_data_b64,
+    export_multi_vm_stack,
+    user_data_plaintext,
+)
 
 DEFAULTS = {
     "instance_opts": (
@@ -22,17 +26,6 @@ DEFAULTS = {
         ),
     ),
 }
-
-
-def user_data_plaintext(user_data_b64: pulumi.Input[str]) -> pulumi.Output[str]:
-    """UpCloud Server.user_data wants the script body, not base64.
-
-    Plain inspector starts already pass plaintext; DBaaS/multi-VM build
-    base64 via ``build_user_data_b64`` and must decode before attach.
-    """
-    return pulumi.Output.from_input(user_data_b64).apply(
-        lambda b: base64.b64decode(b).decode("utf-8") if b else ""
-    )
 
 
 def private_cidr_for_slug(slug: str) -> tuple[str, str]:

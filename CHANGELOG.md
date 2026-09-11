@@ -1,3 +1,11 @@
+# v0.0.83 (2026-09-11)
+
+- Vultr DBaaS/multi-VM and Hetzner multi-VM: pass plaintext `user_data` too.
+  These hit the same cloud-init `Unhandled non-multipart userdata` as UpCloud
+  did in 0.0.82; only the plain single-VM paths were encoding-correct
+- Move `user_data_plaintext` next to `build_user_data_b64` in `multi_vm`, since
+  the base64 the builder emits suits AWS/Azure/OVH but not Hetzner/UpCloud/Vultr
+
 # v0.0.82 (2026-09-11)
 
 - UpCloud DBaaS/multi-VM: pass plaintext `user_data` to `Server` (decode the

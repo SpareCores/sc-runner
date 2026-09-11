@@ -12,8 +12,8 @@ import pulumi_upcloud as upcloud
 
 from .azure_dbaas import export_dbaas_stack
 from .managed_db import DbaasStackSpec
-from .multi_vm import VmSpec, build_user_data_b64
-from .upcloud import private_cidr_for_slug, user_data_plaintext
+from .multi_vm import VmSpec, build_user_data_b64, user_data_plaintext
+from .upcloud import private_cidr_for_slug
 
 NETWORK_MODE = "private_vpc"
 

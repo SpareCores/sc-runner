@@ -12,7 +12,7 @@ import pulumi
 
 from .azure_dbaas import export_dbaas_stack
 from .managed_db import DbaasStackSpec
-from .multi_vm import VmSpec, build_user_data_b64
+from .multi_vm import VmSpec, build_user_data_b64, user_data_plaintext
 from .vultr import resolve_plan
 
 NETWORK_MODE = "private_vpc"
@@ -131,7 +131,7 @@ def resources_vultr_dbaas(
     )
     client_opts = copy.deepcopy(instance_opts)
     client_opts["os_id"] = int(os_info.id)
-    client_opts["user_data"] = client_user_data
+    client_opts["user_data"] = user_data_plaintext(client_user_data)
     client_opts["ssh_key_ids"] = ssh_key_ids
     client_opts["tags"] = [*tags, f"name:{dbaas.client_instance}-client"]
     client_opts["vpc_ids"] = [vpc.id]

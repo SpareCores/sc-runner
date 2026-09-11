@@ -180,6 +180,19 @@ def _encode_user_data(script: str) -> str:
     return base64.b64encode(script.encode("utf-8")).decode("ascii")
 
 
+def user_data_plaintext(user_data_b64: pulumi.Input[str]) -> pulumi.Output[str]:
+    """Decode ``build_user_data_b64`` output for providers that want the script body.
+
+    Vendors disagree on the encoding their user-data field takes: AWS
+    (``user_data_base64``), Azure (``custom_data``) and OVH want base64, while
+    Hetzner, UpCloud and Vultr want the raw script and will hand the base64
+    straight to cloud-init, which rejects it as non-multipart userdata.
+    """
+    return pulumi.Output.from_input(user_data_b64).apply(
+        lambda b: base64.b64decode(b).decode("utf-8") if b else ""
+    )
+
+
 def build_user_data_b64(
     vm: VmSpec,
     *,

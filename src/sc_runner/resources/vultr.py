@@ -2,7 +2,12 @@ from .. import DefaultOpt, JSON
 from .. import data
 from .base import StackName, default, defaults, ensure_spot_supported, spot_from_env, spot_opt
 from .managed_db import DbaasStackSpec
-from .multi_vm import MultiVmStackSpec, build_server_user_data_b64, export_multi_vm_stack
+from .multi_vm import (
+    MultiVmStackSpec,
+    build_server_user_data_b64,
+    export_multi_vm_stack,
+    user_data_plaintext,
+)
 from functools import lru_cache
 from typing import Annotated
 import click
@@ -254,7 +259,7 @@ def resources_vultr_multi(
     def vm_opts(instance_type: str, user_data_b64: pulumi.Input[str]):
         opts = copy.deepcopy(instance_opts)
         opts["os_id"] = int(os_info.id)
-        opts["user_data"] = user_data_b64
+        opts["user_data"] = user_data_plaintext(user_data_b64)
         opts["ssh_key_ids"] = ssh_key_ids
         opts["tags"] = [*tags, f"name:{instance_type}"]
         opts["vpc_ids"] = [vpc.id]
