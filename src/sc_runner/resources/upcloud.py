@@ -1,5 +1,7 @@
+import base64
 import copy
 import os
+import zlib
 from typing import Annotated
 
 import click
@@ -20,6 +22,32 @@ DEFAULTS = {
         ),
     ),
 }
+
+
+def user_data_plaintext(user_data_b64: pulumi.Input[str]) -> pulumi.Output[str]:
+    """UpCloud Server.user_data wants the script body, not base64.
+
+    Plain inspector starts already pass plaintext; DBaaS/multi-VM build
+    base64 via ``build_user_data_b64`` and must decode before attach.
+    """
+    return pulumi.Output.from_input(user_data_b64).apply(
+        lambda b: base64.b64decode(b).decode("utf-8") if b else ""
+    )
+
+
+def private_cidr_for_slug(slug: str) -> tuple[str, str]:
+    """Deterministic RFC1918 /24 + gateway for a private network slug.
+
+    UpCloud rejects overlapping private network addresses account-wide (not
+    per-zone), so concurrent stacks cannot all use 10.0.1.0/24.
+    """
+    h = zlib.crc32(slug.encode()) & 0xFFFFFFFF
+    # 10.{64-127}.{0-255}.0/24
+    second = 64 + (h % 64)
+    third = (h // 64) % 256
+    cidr = f"10.{second}.{third}.0/24"
+    gateway = f"10.{second}.{third}.1"
+    return cidr, gateway
 
 
 def resources_upcloud(
@@ -116,6 +144,9 @@ def resources_upcloud_multi(
     multi_vm: MultiVmStackSpec,
 ):
     instance_opts = copy.deepcopy(instance_opts)
+    private_cidr, gateway = private_cidr_for_slug(
+        f"{multi_vm.client_instance}-{multi_vm.db_instance}"
+    )
 
     router = upcloud.Router(
         multi_vm.db_instance,
@@ -127,11 +158,11 @@ def resources_upcloud_multi(
         zone=region,
         router=router.id,
         ip_network=dict(
-            address="10.0.1.0/24",
+            address=private_cidr,
             dhcp=True,
             dhcp_default_route=False,
             family="IPv4",
-            gateway="10.0.1.1",
+            gateway=gateway,
         ),
     )
 
@@ -149,7 +180,7 @@ def resources_upcloud_multi(
                     {"type": "private", "network": network.id},
                 ],
                 metadata=True,
-                user_data=user_data_b64,
+                user_data=user_data_plaintext(user_data_b64),
             )
         )
         return opts

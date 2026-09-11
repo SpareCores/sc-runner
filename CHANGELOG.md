@@ -1,3 +1,12 @@
+# v0.0.82 (2026-09-11)
+
+- UpCloud DBaaS/multi-VM: pass plaintext `user_data` to `Server` (decode the
+  shared base64 builder output). Base64 was ignored by cloud-init
+  (`Unhandled non-multipart userdata`), so companions never started inspector.
+- UpCloud DBaaS/multi-VM: assign a deterministic per-stack private /24
+  (account-wide CIDRs cannot overlap), avoiding `ADDRESS_INVALID` when another
+  stack still holds `10.0.1.0/24`
+
 # v0.0.81 (2026-09-11)
 
 - OVH DBaaS: authorize the private VPC CIDR (`10.1.0.0/24`) via `ip_restrictions`

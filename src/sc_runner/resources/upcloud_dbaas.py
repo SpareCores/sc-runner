@@ -13,9 +13,9 @@ import pulumi_upcloud as upcloud
 from .azure_dbaas import export_dbaas_stack
 from .managed_db import DbaasStackSpec
 from .multi_vm import VmSpec, build_user_data_b64
+from .upcloud import private_cidr_for_slug, user_data_plaintext
 
 NETWORK_MODE = "private_vpc"
-PRIVATE_CIDR = "10.0.1.0/24"
 
 
 def _random_password(length: int = 24) -> str:
@@ -42,6 +42,7 @@ def resources_upcloud_dbaas(
     slug = dbaas.instance_key_slug or "dbaas"
     service = _service_name(slug)
     instance_opts = copy.deepcopy(instance_opts)
+    private_cidr, gateway = private_cidr_for_slug(slug)
 
     router = upcloud.Router(slug, name=f"{service}-router")
     network = upcloud.Network(
@@ -50,11 +51,11 @@ def resources_upcloud_dbaas(
         zone=region,
         router=router.id,
         ip_network=dict(
-            address=PRIVATE_CIDR,
+            address=private_cidr,
             dhcp=True,
             dhcp_default_route=False,
             family="IPv4",
-            gateway="10.0.1.1",
+            gateway=gateway,
         ),
     )
 
@@ -67,7 +68,7 @@ def resources_upcloud_dbaas(
         "admin_username": admin_login,
         "admin_password": admin_password,
         "public_access": False,
-        "ip_filters": [PRIVATE_CIDR],
+        "ip_filters": [private_cidr],
         "automatic_utility_network_ip_filter": True,
     }
     pg_kwargs: dict = dict(
@@ -133,7 +134,7 @@ def resources_upcloud_dbaas(
                 {"type": "private", "network": network.id},
             ],
             metadata=True,
-            user_data=client_user_data,
+            user_data=user_data_plaintext(client_user_data),
         )
     )
     client = upcloud.Server(
