@@ -11,6 +11,7 @@ from __future__ import annotations
 import re
 import secrets
 import string
+import zlib
 
 import pulumi
 import pulumi_ovh as ovh
@@ -39,6 +40,17 @@ def _random_token(length: int = 16) -> str:
 def _sanitize_name(slug: str) -> str:
     raw = re.sub(r"[^a-zA-Z0-9-]", "-", slug).strip("-")
     return (raw or "sc-dbaas")[:63]
+
+
+def _vlan_id_for_slug(slug: str) -> int:
+    """Deterministic non-zero VLAN id for this stack's private network.
+
+    OVH allows only one vlan-less (``vlan_id=0``) private network per cloud
+    project, so every stack must get its own tagged VLAN or concurrent/leftover
+    stacks collide with ``FlexDiskSizeNotMultiple``-style "network already
+    exists for this vlan ID" errors. Valid range is 2-4000 (0 and 1 reserved).
+    """
+    return 2 + (zlib.crc32(slug.encode()) % 3999)
 
 
 def resources_ovh_dbaas(
@@ -75,6 +87,7 @@ def resources_ovh_dbaas(
         service_name=project_id,
         name=f"sc-runner-{slug}",
         regions=[vm_region],
+        vlan_id=_vlan_id_for_slug(slug),
     )
     subnet = ovh.cloudproject.NetworkPrivateSubnet(
         f"{slug}-net",
