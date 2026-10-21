@@ -1,3 +1,13 @@
+# v0.0.85 (2026-10-21)
+
+- UpCloud DBaaS: provision flexible (`rdb.*`) Postgres plans with
+  `plan_compute` / `plan_node_count` / `plan_storage_gib` / `plan_backups`
+  instead of the deprecated single `plan` field (API rejects compute-only ids
+  as "Invalid service plan … for zone")
+- UpCloud DBaaS: use `mini` backups for development shapes; snap
+  `plan_storage_gib` into UpCloud's discontinuous storage bands
+- Require `pulumi-upcloud>=0.21.0` for the new Managed Database plan fields
+
 # v0.0.84 (2026-09-11)
 
 - OVH DBaaS: derive the project-wide VLAN ID from the full candidate identity

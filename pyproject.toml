@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sparecores-runner"
-version = "0.0.84"
+version = "0.0.85"
 requires-python = ">= 3.9"
 dependencies = [
     "click",
@@ -15,7 +15,9 @@ dependencies = [
     "pulumi-gcp",
     "pulumi-hcloud",
     "pulumi-ovh",
-    "pulumi-upcloud",
+    # 0.21+ exposes plan_compute / plan_node_count / plan_storage_gib / plan_backups
+    # for flexible (rdb.*) Managed Database plans.
+    "pulumi-upcloud>=0.21.0",
     "ediri-vultr",
     "requests",
     "sentry-sdk",

@@ -11,11 +11,25 @@ import pulumi
 import pulumi_upcloud as upcloud
 
 from .azure_dbaas import export_dbaas_stack
-from .managed_db import DbaasStackSpec
+from .managed_db import DbaasStackSpec, ManagedDbSpec
 from .multi_vm import VmSpec, build_user_data_b64, user_data_plaintext
 from .upcloud import private_cidr_for_slug
 
 NETWORK_MODE = "private_vpc"
+# Flexible (rdb.*) plans bill compute/storage/nodes separately; legacy bundled
+# plans still use the single `plan` field.
+# https://developers.upcloud.com/1.3/16-managed-database/
+# https://upcloud.com/docs/products/managed-postgresql/configurations/
+#
+# Storage is sold in discontinuous bands (from GET /1.3/database/plans); sizes
+# that fall in a gap are rejected. Keep this in sync with UpCloud's catalog.
+_STORAGE_BANDS_GIB = (
+    (10, 50),
+    (80, 400),
+    (500, 2500),
+    (3000, 7168),
+)
+_STORAGE_STEP_GIB = 10
 
 
 def _random_password(length: int = 24) -> str:
@@ -28,6 +42,71 @@ def _service_name(slug: str) -> str:
     raw = re.sub(r"[^a-z0-9]", "", slug.lower())
     name = f"sc{raw}" if raw else "scdbaas"
     return name[:63]
+
+
+def _is_flexible_plan(plan: str) -> bool:
+    return plan.startswith("rdb.")
+
+
+def _plan_node_count(ha_mode: str | None) -> int:
+    """Map inspector ha_mode to UpCloud plan_node_count."""
+    mode = (ha_mode or "standalone").strip().lower()
+    if mode in ("standalone", "none", "single_zone", "single"):
+        return 1
+    if mode in ("2", "ha2"):
+        return 2
+    if mode in ("3", "ha3"):
+        return 3
+    # Readable / HA cluster paths default to 2 nodes.
+    return 2
+
+
+def _plan_backups(plan: str) -> str:
+    """Backup tier allowed for the compute shape.
+
+    Development shapes only expose ``mini``; Standard/High Memory use
+    ``regular`` / ``extended`` (GET /1.3/database/plans).
+    """
+    if plan.startswith("rdb.development."):
+        return "mini"
+    return "regular"
+
+
+def _snap_storage_gib(storage_gib: int, plan: str) -> int:
+    """Round to step and snap into a valid UpCloud storage band."""
+    gib = max(_STORAGE_STEP_GIB, int(storage_gib))
+    gib = -(-gib // _STORAGE_STEP_GIB) * _STORAGE_STEP_GIB  # ceil to step
+    # Tiny development 1GB shape only allows the 10–50 band.
+    bands = _STORAGE_BANDS_GIB
+    if plan.startswith("rdb.development.1CPU-1GB"):
+        bands = _STORAGE_BANDS_GIB[:1]
+    elif plan.startswith("rdb.development."):
+        bands = _STORAGE_BANDS_GIB[:2]
+    for lo, hi in bands:
+        if lo <= gib <= hi:
+            return gib
+    for lo, hi in bands:
+        if gib < lo:
+            return lo
+    return bands[-1][1]
+
+
+def _postgres_plan_kwargs(md: ManagedDbSpec, plan: str) -> dict:
+    """Build ManagedDatabasePostgresql plan args for flexible or legacy plans."""
+    if not _is_flexible_plan(plan):
+        return {"plan": plan}
+    storage_gib = int(md.storage_gib or 0)
+    if storage_gib <= 0:
+        raise ValueError(
+            f"UpCloud flexible plan {plan!r} requires storage_gib > 0 "
+            "(plan_storage_gib)"
+        )
+    return {
+        "plan_compute": plan,
+        "plan_node_count": _plan_node_count(md.ha_mode),
+        "plan_storage_gib": _snap_storage_gib(storage_gib, plan),
+        "plan_backups": _plan_backups(plan),
+    }
 
 
 def resources_upcloud_dbaas(
@@ -72,7 +151,6 @@ def resources_upcloud_dbaas(
         "automatic_utility_network_ip_filter": True,
     }
     pg_kwargs: dict = dict(
-        plan=plan,
         title=service,
         zone=region,
         name=service,
@@ -86,6 +164,7 @@ def resources_upcloud_dbaas(
             }
         ],
         properties=upcloud.ManagedDatabasePostgresqlPropertiesArgs(**props_kwargs),
+        **_postgres_plan_kwargs(md, plan),
     )
     pg = upcloud.ManagedDatabasePostgresql(slug, **pg_kwargs)
 

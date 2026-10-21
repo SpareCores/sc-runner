@@ -24,10 +24,12 @@ PUBKEY = os.environ.get(
     "SSH_PUBLIC_KEY",
     "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEPMwX6HY8inovVAqUrAKvqY0zabNoWfmN/7UlNsBvZ4 info@sparecores.com",
 )
-REGION = os.environ.get("UPCLOUD_REGION", "de-fra1")
-DB_PLAN = os.environ.get("UPCLOUD_DB_PLAN", "1x1xCPU-1GB-10GB")
+REGION = os.environ.get("UPCLOUD_REGION", "fi-hel1")
+# Match sc-inspector flexible shapes (plan_compute), not legacy bundled plan names.
+DB_PLAN = os.environ.get("UPCLOUD_DB_PLAN", "rdb.development.1CPU-2GB")
 CLIENT_INSTANCE = os.environ.get("CLIENT_INSTANCE", "1xCPU-1GB")
 ENGINE_VERSION = os.environ.get("UPCLOUD_ENGINE_VERSION", "18")
+STORAGE_GIB = int(os.environ.get("UPCLOUD_STORAGE_GIB", "20"))
 SLUG = os.environ.get("DBAAS_SLUG", "upctest-pg18")
 
 
@@ -41,7 +43,7 @@ def _build_spec() -> DbaasStackSpec:
         native_id=DB_PLAN,
         sku_name=DB_PLAN,
         ha_mode="standalone",
-        storage_gib=11,
+        storage_gib=STORAGE_GIB,
         admin_login="scadmin",
         database_name="bench",
     )
