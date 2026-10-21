@@ -11,6 +11,7 @@ from pathlib import Path
 
 text = Path("/app/111RUNNER.md").read_text()
 keys = [
+    "SSH_PUBLIC_KEY",
     "OVH_ENDPOINT",
     "OVH_CLIENT_ID",
     "OVH_CLIENT_SECRET",
@@ -29,9 +30,13 @@ PY
 source /tmp/dbaas-smoke-env.sh
 rm -f /tmp/dbaas-smoke-env.sh
 
-for k in OVH_CLIENT_ID OVH_CLIENT_SECRET OVH_CLOUD_PROJECT_SERVICE OVH_ENDPOINT; do
+for k in SSH_PUBLIC_KEY OVH_CLIENT_ID OVH_CLIENT_SECRET OVH_CLOUD_PROJECT_SERVICE OVH_ENDPOINT; do
   if [ -n "${!k:-}" ]; then echo "have $k"; else echo "MISSING $k"; fi
 done
+if [ -z "${SSH_PUBLIC_KEY:-}" ]; then
+  echo "SSH_PUBLIC_KEY is required (set in env or 111RUNNER.md); refusing to run with an embedded key"
+  exit 2
+fi
 
 export SC_DATA_DB_PATH=/root/.cache/sparecores-data/sc-data-all.db
 export SC_DATA_NO_UPDATE=1

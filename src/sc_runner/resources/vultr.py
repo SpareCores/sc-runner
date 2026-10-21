@@ -12,11 +12,14 @@ from functools import lru_cache
 from typing import Annotated
 import click
 import copy
+import logging
 import os
 import pulumi
 import ediri_vultr as vultr
-from sc_crawler.tables import Server
+from sc_crawler.tables import Server, Status
 from sqlmodel import select
+
+logger = logging.getLogger(__name__)
 
 
 DEFAULTS = {
@@ -37,7 +40,15 @@ def _is_bare_metal(plan: str) -> bool:
 
 
 def resolve_plan(instance: str, disk_size: int) -> str:
-    """Return a deployable Vultr plan id, remapping block-only VX1 tiers when needed."""
+    """Return a deployable Vultr plan id, remapping block-only VX1 tiers when needed.
+
+    Diskless VX1 SKUs (``storage_size <= 1``) need either a local-NVMe sibling
+    (``-###s`` suffix) or bootable ``block_devices`` at create time. Pulumi
+    ``ediri-vultr`` 2.27.1 has no ``block_devices`` yet (TF added them in
+    2.30.0), so we remap to a sibling. Prefer ACTIVE rows; if Vultr retired the
+    local-NVMe listing in our catalog but left an INACTIVE sibling, still use
+    that plan id so create/cleanup do not hard-fail while the API accepts it.
+    """
     row = data.session.exec(
         select(Server)
         .where(Server.vendor_id == "vultr")
@@ -45,25 +56,38 @@ def resolve_plan(instance: str, disk_size: int) -> str:
     ).one()
     if row.storage_size > 1:
         return instance
-    candidates = data.session.exec(
-        select(Server.api_reference, Server.storage_size)
+    siblings = data.session.exec(
+        select(Server.api_reference, Server.storage_size, Server.status)
         .where(Server.vendor_id == "vultr")
         .where(Server.family == row.family)
         .where(Server.vcpus == row.vcpus)
         .where(Server.memory_amount == row.memory_amount)
         .where(Server.storage_size > 1)
-        .where(Server.status == "ACTIVE")
         .order_by(Server.storage_size)
     ).all()
+    # Status is an Enum (value "active"); compare to Status.ACTIVE, not "ACTIVE".
+    active = [(api, size) for api, size, status in siblings if status == Status.ACTIVE]
+    candidates = active or [(api, size) for api, size, _status in siblings]
     if not candidates:
         raise ValueError(
-            f"Vultr plan '{instance}' requires block storage and no ACTIVE sibling plan "
-            f"exists in sc-data for family={row.family!r}"
+            f"Vultr plan '{instance}' requires block storage and no sibling plan "
+            f"exists in sc-data for family={row.family!r} (need ediri-vultr with "
+            f"Instance.block_devices, or a local-NVMe -###s sibling)"
         )
+    chosen = candidates[-1][0]
     for api_reference, storage_size in candidates:
         if storage_size >= disk_size:
-            return api_reference
-    return candidates[-1][0]
+            chosen = api_reference
+            break
+    if not active:
+        # Called from inspector cleanup too (no Pulumi program); use std logging.
+        logger.warning(
+            "Vultr plan %r has no ACTIVE storage sibling; using catalog sibling "
+            "%r (status not ACTIVE)",
+            instance,
+            chosen,
+        )
+    return chosen
 
 
 def resources_vultr(

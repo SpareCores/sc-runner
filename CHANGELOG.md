@@ -1,3 +1,11 @@
+# v0.0.86 (2026-10-21)
+
+- Vultr: when a diskless VX1 plan has no ACTIVE local-NVMe sibling in sc-data,
+  fall back to an INACTIVE sibling plan id so create/cleanup can proceed
+  (ediri-vultr 2.27.1 still lacks Instance.block_devices)
+- Smoke scripts: require `SSH_PUBLIC_KEY` from the environment; remove the
+  embedded SpareCores public key fallback
+
 # v0.0.85 (2026-10-21)
 
 - UpCloud DBaaS: provision flexible (`rdb.*`) Postgres plans with

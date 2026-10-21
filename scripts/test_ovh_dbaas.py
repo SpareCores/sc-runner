@@ -4,6 +4,7 @@ Creates a small stack, prints outputs, then destroys it unless --keep is set.
 
 Example:
 
+  SSH_PUBLIC_KEY="$(cat ~/.ssh/id_ed25519.pub)" \\
   SC_DATA_DB_PATH=/data/sc-data-all.db SC_DATA_NO_UPDATE=1 \\
   PULUMI_BACKEND_URL=file:///data/backend PULUMI_CONFIG_PASSPHRASE= \\
     python /app/scripts/test_ovh_dbaas.py
@@ -16,14 +17,14 @@ import base64
 import os
 import sys
 import traceback
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from smoke_ssh import require_ssh_public_key  # noqa: E402
 
 from sc_runner import runner
 from sc_runner.resources.managed_db import DbaasStackSpec, ManagedDbSpec
 
-PUBKEY = os.environ.get(
-    "SSH_PUBLIC_KEY",
-    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEPMwX6HY8inovVAqUrAKvqY0zabNoWfmN/7UlNsBvZ4 info@sparecores.com",
-)
 REGION = os.environ.get("OVH_REGION", "GRA")
 DB_NATIVE = os.environ.get("OVH_DB_NATIVE", "postgresql-essential-db1-4")
 DB_PLAN = os.environ.get("OVH_DB_PLAN", "essential")
@@ -81,7 +82,7 @@ def main() -> int:
         "project_id": PROJECT_ID,
         "region": REGION,
         "instance": CLIENT_INSTANCE,
-        "public_key": PUBKEY,
+        "public_key": require_ssh_public_key(),
         "dbaas_slug": SLUG,
         "dbaas": _build_spec(),
     }
