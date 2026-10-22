@@ -1,3 +1,10 @@
+# v0.0.87 (2026-10-22)
+
+- UpCloud DBaaS: snap `plan_storage_gib` and pick `plan_backups` from sc-data
+  `database.api_reference_object` (per-plan bands / allowed tiers); drop the
+  global shape heuristic that accepted invalid sizes for large `rdb.*` plans
+- `ManagedDbSpec.plan_backups`: optional override from inspector provision
+
 # v0.0.86 (2026-10-21)
 
 - Vultr: when a diskless VX1 plan has no ACTIVE local-NVMe sibling in sc-data,

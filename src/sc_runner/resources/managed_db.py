@@ -25,6 +25,8 @@ class ManagedDbSpec:
     admin_login: str = "scadmin"
     admin_password: str = ""
     database_name: str = "bench"  # created by sc-inspector bootstrap, not Pulumi
+    # UpCloud flexible (rdb.*) backup tier: mini / regular / extended.
+    plan_backups: str | None = None
 
 
 @dataclass

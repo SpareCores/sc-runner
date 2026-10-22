@@ -10,6 +10,7 @@ import string
 import pulumi
 import pulumi_upcloud as upcloud
 
+from .. import data as sc_data_helpers
 from .azure_dbaas import export_dbaas_stack
 from .managed_db import DbaasStackSpec, ManagedDbSpec
 from .multi_vm import VmSpec, build_user_data_b64, user_data_plaintext
@@ -21,15 +22,8 @@ NETWORK_MODE = "private_vpc"
 # https://developers.upcloud.com/1.3/16-managed-database/
 # https://upcloud.com/docs/products/managed-postgresql/configurations/
 #
-# Storage is sold in discontinuous bands (from GET /1.3/database/plans); sizes
-# that fall in a gap are rejected. Keep this in sync with UpCloud's catalog.
-_STORAGE_BANDS_GIB = (
-    (10, 50),
-    (80, 400),
-    (500, 2500),
-    (3000, 7168),
-)
-_STORAGE_STEP_GIB = 10
+# Per-plan storage bands and backup tiers come from sc-data
+# ``database.api_reference_object`` (crawler GET /1.3/database/plans).
 
 
 def _random_password(length: int = 24) -> str:
@@ -61,31 +55,53 @@ def _plan_node_count(ha_mode: str | None) -> int:
     return 2
 
 
-def _plan_backups(plan: str) -> str:
+def _plan_backups(md: ManagedDbSpec, plan: str) -> str:
     """Backup tier allowed for the compute shape.
 
-    Development shapes only expose ``mini``; Standard/High Memory use
-    ``regular`` / ``extended`` (GET /1.3/database/plans).
+    Prefer ``ManagedDbSpec.plan_backups`` (from inspector), else
+    ``api_reference_object.plan_backups`` in sc-data.
     """
-    if plan.startswith("rdb.development."):
-        return "mini"
-    return "regular"
+    if md.plan_backups:
+        return md.plan_backups
+    meta = sc_data_helpers.upcloud_flexible_plan_meta(plan)
+    allowed = meta.get("plan_backups") or []
+    for pref in ("mini", "regular", "extended"):
+        if pref in allowed:
+            return pref
+    raise ValueError(
+        f"UpCloud flexible plan {plan!r} missing plan_backups in sc-data "
+        "api_reference_object (and ManagedDbSpec.plan_backups unset)"
+    )
+
+
+def _storage_bands_for_plan(plan: str) -> tuple[int, tuple[tuple[int, int], ...]]:
+    """Return (step_gib, bands) from sc-data api_reference_object.plan_storage."""
+    meta = sc_data_helpers.upcloud_flexible_plan_meta(plan)
+    ps = meta.get("plan_storage") or {}
+    step = int(ps.get("step_gib") or 10)
+    options = ps.get("options") or []
+    bands = tuple(
+        (int(option["base_gib"]), int(option["max_gib"]))
+        for option in options
+        if isinstance(option, dict) and "base_gib" in option and "max_gib" in option
+    )
+    if not bands:
+        raise ValueError(
+            f"UpCloud flexible plan {plan!r} missing "
+            "api_reference_object.plan_storage bands in sc-data"
+        )
+    return step, bands
 
 
 def _snap_storage_gib(storage_gib: int, plan: str) -> int:
     """Round to step and snap into a valid UpCloud storage band."""
-    gib = max(_STORAGE_STEP_GIB, int(storage_gib))
-    gib = -(-gib // _STORAGE_STEP_GIB) * _STORAGE_STEP_GIB  # ceil to step
-    # Tiny development 1GB shape only allows the 10–50 band.
-    bands = _STORAGE_BANDS_GIB
-    if plan.startswith("rdb.development.1CPU-1GB"):
-        bands = _STORAGE_BANDS_GIB[:1]
-    elif plan.startswith("rdb.development."):
-        bands = _STORAGE_BANDS_GIB[:2]
+    step, bands = _storage_bands_for_plan(plan)
+    gib = max(step, int(storage_gib))
+    gib = -(-gib // step) * step  # ceil to step
     for lo, hi in bands:
         if lo <= gib <= hi:
             return gib
-    for lo, hi in bands:
+    for lo, _hi in bands:
         if gib < lo:
             return lo
     return bands[-1][1]
@@ -105,7 +121,7 @@ def _postgres_plan_kwargs(md: ManagedDbSpec, plan: str) -> dict:
         "plan_compute": plan,
         "plan_node_count": _plan_node_count(md.ha_mode),
         "plan_storage_gib": _snap_storage_gib(storage_gib, plan),
-        "plan_backups": _plan_backups(plan),
+        "plan_backups": _plan_backups(md, plan),
     }
 
 

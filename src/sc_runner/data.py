@@ -211,6 +211,51 @@ def database_storage_bounds(vendor: str, database_id: str) -> tuple[int | None, 
     return floor, ceiling
 
 
+def database_api_reference_object(vendor: str, database_id: str) -> dict | None:
+    """Return ``database.api_reference_object`` for a vendor SKU (or None)."""
+    import json
+
+    stmt = text(
+        """
+        SELECT api_reference_object
+        FROM database
+        WHERE vendor_id = :vendor
+          AND (database_id = :database_id OR api_reference = :database_id)
+        LIMIT 1
+        """
+    )
+    with _engine.connect() as conn:
+        row = conn.execute(
+            stmt, {"vendor": vendor, "database_id": database_id}
+        ).one_or_none()
+    if not row or row[0] is None:
+        return None
+    raw = row[0]
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, str):
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError:
+            return None
+        return parsed if isinstance(parsed, dict) else None
+    return None
+
+
+def upcloud_flexible_plan_meta(database_id: str) -> dict:
+    """Return UpCloud rdb.* plan_storage / plan_backups from sc-data.
+
+    Keys: ``plan_storage`` (dict with step_gib/options), ``plan_backups`` (list),
+    ``plan_node_counts`` (list). Empty dicts/lists when missing.
+    """
+    obj = database_api_reference_object("upcloud", database_id) or {}
+    return {
+        "plan_storage": obj.get("plan_storage") or {},
+        "plan_backups": list(obj.get("plan_backups") or []),
+        "plan_node_counts": list(obj.get("plan_node_counts") or []),
+    }
+
+
 def database_region_prices(
     vendor: str,
     database_id: str,
