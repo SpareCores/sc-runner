@@ -1,3 +1,11 @@
+# v0.0.88 (2026-10-30)
+
+- Azure: set `securityProfile.securityType=ConfidentialVM` (vTPM + Secure Boot)
+  and OS-disk `securityEncryptionType=VMGuestStateOnly` for DCas/DCes/ECas/ECes
+  (and ads/eds) sizes; switch Canonical images to `ubuntu-24_04-lts:cvm`
+  (same LTS as non-CVM; fixes BadRequest “… not supported … with '<NULL>'
+  security type”)
+
 # v0.0.87 (2026-10-22)
 
 - UpCloud DBaaS: snap `plan_storage_gib` and pick `plan_backups` from sc-data

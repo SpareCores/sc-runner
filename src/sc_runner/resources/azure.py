@@ -7,6 +7,7 @@ from .multi_vm import MultiVmStackSpec, build_server_user_data_b64, export_multi
 from typing import Annotated
 import click
 import os
+import re
 import pulumi
 from pulumi_azure_native.compute import (
     BillingProfileArgs,
@@ -22,10 +23,15 @@ from pulumi_azure_native.compute import (
     NetworkProfileArgs,
     OSDiskArgs,
     OSProfileArgs,
+    SecurityEncryptionTypes,
+    SecurityProfileArgs,
+    SecurityTypes,
     SshConfigurationArgs,
     SshPublicKeyArgs,
     StorageProfileArgs,
+    UefiSettingsArgs,
     VirtualMachine,
+    VMDiskSecurityProfileArgs,
 )
 from pulumi_azure_native.authorization import get_client_config_output
 from pulumi_azure_native.network import (
@@ -88,18 +94,85 @@ def _platform_image_reference_id(
     )
 
 
+def _azure_confidential_kind(instance: str) -> str | None:
+    """Return ``sev`` / ``tdx`` for Confidential VM sizes, else ``None``.
+
+    Azure rejects creating DCas/DCes/ECas/ECes (and ads/eds variants) with a
+    null ``securityProfile.securityType``. Intel SGX isolated sizes (DCsv2/v3)
+    are excluded — they do not use ConfidentialVM security type.
+
+    Name heuristic only until DEV-1069 lands ConfidentialComputingType in
+    sc-data; then prefer the DB over this regex.
+    """
+    name = instance.removeprefix("Standard_").lower()
+    m = re.fullmatch(r"(dc|ec)(\d+)(a|e)?(d)?s(_cc)?_v(\d+)", name)
+    if not m:
+        return None
+    prefix, _n, ae, _d, _cc, ver = m.groups()
+    # SGX: Standard_DC1s_v2 / Standard_DC8ds_v3 / etc. (no a/e infix, v2/v3)
+    if prefix == "dc" and ae is None and ver in ("2", "3"):
+        return None
+    if ae == "e":
+        return "tdx"
+    return "sev"
+
+
+def _azure_cvm_image(
+    kind: str,
+    publisher: str,
+    offer: str,
+    sku: str | None,
+) -> tuple[str, str, str]:
+    """Map default Ubuntu images onto Confidential-VM-capable marketplace URNs.
+
+    ``kind`` is reserved (sev/tdx) for future image split. Keep the same LTS
+    offer as non-CVM (``ubuntu-24_04-lts``) and switch SKU ``server`` → ``cvm``;
+    the plain ``server`` SKU is TrustedLaunchSupported only.
+    """
+    if publisher.lower() != "canonical":
+        return publisher, offer, sku or "server"
+    return (
+        "Canonical",
+        "ubuntu-24_04-lts",
+        "cvm",
+    )
+
+
+def _managed_os_disk_params(
+    disk_type: str | None,
+    *,
+    confidential: bool,
+) -> ManagedDiskParametersArgs:
+    kwargs: dict = {"storage_account_type": disk_type or DEFAULT_STORAGE_ACCOUNT_TYPE}
+    if confidential:
+        kwargs["security_profile"] = VMDiskSecurityProfileArgs(
+            security_encryption_type=SecurityEncryptionTypes.VM_GUEST_STATE_ONLY,
+        )
+    return ManagedDiskParametersArgs(**kwargs)
+
+
 def _os_disk_from_image(
     *,
     disk_gib: int,
     disk_type: str | None,
+    confidential: bool = False,
 ) -> OSDiskArgs:
     return OSDiskArgs(
         create_option="FromImage",
-        managed_disk=ManagedDiskParametersArgs(
-            storage_account_type=disk_type or DEFAULT_STORAGE_ACCOUNT_TYPE
-        ),
+        managed_disk=_managed_os_disk_params(disk_type, confidential=confidential),
         caching="ReadWrite",
         disk_size_gb=disk_gib,
+    )
+
+
+def _apply_azure_confidential_security(vmopts: dict) -> None:
+    """Set ConfidentialVM securityProfile (vTPM + Secure Boot)."""
+    vmopts["security_profile"] = SecurityProfileArgs(
+        security_type=SecurityTypes.CONFIDENTIAL_VM,
+        uefi_settings=UefiSettingsArgs(
+            secure_boot_enabled=True,
+            v_tpm_enabled=True,
+        ),
     )
 
 
@@ -176,12 +249,16 @@ def _server_os_disk(
     image_version: str,
     zone: str | None,
     tags: dict,
+    confidential: bool = False,
 ) -> tuple[OSDiskArgs, bool]:
     if (
         disk_type in _PREMIUM_V2_DISK_TYPES
         and (disk_iops or disk_throughput)
         and image_version != "latest"
+        and not confidential
     ):
+        # PremiumV2 attach path does not yet set disk securityProfile; Confidential
+        # VMs require it, so fall back to FromImage for those sizes.
         return (
             _provisioned_premium_v2_os_disk(
                 name=f"{server_name}-os",
@@ -201,7 +278,12 @@ def _server_os_disk(
             ),
             True,
         )
-    return _os_disk_from_image(disk_gib=disk_gib, disk_type=disk_type), False
+    return (
+        _os_disk_from_image(
+            disk_gib=disk_gib, disk_type=disk_type, confidential=confidential
+        ),
+        False,
+    )
 
 
 def _apply_azure_spot(vmopts: dict, spot: bool) -> None:
@@ -277,6 +359,13 @@ def resources_azure(
         else:
             image_sku = "server"
 
+    cvm_kind = _azure_confidential_kind(instance)
+    confidential = cvm_kind is not None
+    if confidential:
+        image_publisher, image_offer, image_sku = _azure_cvm_image(
+            cvm_kind, image_publisher, image_offer, image_sku
+        )
+
     res_name = f"{region}{zone}{instance}"
     resource_group = ResourceGroup(
         instance,
@@ -339,6 +428,7 @@ def resources_azure(
         image_version=image_version,
         zone=zone,
         tags=tags,
+        confidential=confidential,
     )
     if attach_os_disk:
         storage_profile = StorageProfileArgs(os_disk=os_disk)
@@ -383,6 +473,8 @@ def resources_azure(
     if zone is not None:
         vmopts["zones"] = [zone]
     _apply_azure_spot(vmopts, spot)
+    if confidential:
+        _apply_azure_confidential_security(vmopts)
     VirtualMachine(instance, **vmopts)
 
 
@@ -405,6 +497,20 @@ def resources_azure_multi(
     if image_sku is None:
         arch = data.server_cpu_architecture("azure", multi_vm.db_instance).lower()
         image_sku = "server-arm64" if "arm" in arch else "server"
+
+    # Per-VM image/security: client and DB sizes may differ (CVM vs standard).
+    client_cvm = _azure_confidential_kind(multi_vm.client_instance)
+    server_cvm = _azure_confidential_kind(multi_vm.db_instance)
+    client_publisher, client_offer, client_sku = image_publisher, image_offer, image_sku
+    server_publisher, server_offer, server_sku = image_publisher, image_offer, image_sku
+    if client_cvm:
+        client_publisher, client_offer, client_sku = _azure_cvm_image(
+            client_cvm, image_publisher, image_offer, image_sku
+        )
+    if server_cvm:
+        server_publisher, server_offer, server_sku = _azure_cvm_image(
+            server_cvm, image_publisher, image_offer, image_sku
+        )
 
     res_name = f"{region}{zone}{multi_vm.db_instance}"
     resource_group = ResourceGroup(
@@ -477,16 +583,16 @@ def resources_azure_multi(
         storage_profile=StorageProfileArgs(
             os_disk=OSDiskArgs(
                 create_option="FromImage",
-                managed_disk=ManagedDiskParametersArgs(
-                    storage_account_type=multi_vm.client_disk_type or DEFAULT_STORAGE_ACCOUNT_TYPE
+                managed_disk=_managed_os_disk_params(
+                    multi_vm.client_disk_type, confidential=client_cvm is not None
                 ),
                 caching="ReadWrite",
                 disk_size_gb=multi_vm.client_disk_gib,
             ),
             image_reference=ImageReferenceArgs(
-                publisher=image_publisher,
-                offer=image_offer,
-                sku=image_sku,
+                publisher=client_publisher,
+                offer=client_offer,
+                sku=client_sku,
                 version=image_version,
             ),
         ),
@@ -495,6 +601,8 @@ def resources_azure_multi(
     if zone is not None:
         client_vmopts["zones"] = [zone]
     _apply_azure_spot(client_vmopts, spot)
+    if client_cvm:
+        _apply_azure_confidential_security(client_vmopts)
     client_vm = VirtualMachine(client_name, **client_vmopts)
 
     client_private_ip = client_nic.ip_configurations.apply(
@@ -511,12 +619,13 @@ def resources_azure_multi(
         disk_iops=multi_vm.db_disk_iops,
         disk_throughput=multi_vm.db_disk_throughput,
         region=region,
-        image_publisher=image_publisher,
-        image_offer=image_offer,
-        image_sku=image_sku,
+        image_publisher=server_publisher,
+        image_offer=server_offer,
+        image_sku=server_sku,
         image_version=image_version,
         zone=zone,
         tags=tags,
+        confidential=server_cvm is not None,
     )
     if attach_os_disk:
         server_storage_profile = StorageProfileArgs(os_disk=server_os_disk)
@@ -524,9 +633,9 @@ def resources_azure_multi(
         server_storage_profile = StorageProfileArgs(
             os_disk=server_os_disk,
             image_reference=ImageReferenceArgs(
-                publisher=image_publisher,
-                offer=image_offer,
-                sku=image_sku,
+                publisher=server_publisher,
+                offer=server_offer,
+                sku=server_sku,
                 version=image_version,
             ),
         )
@@ -581,6 +690,8 @@ def resources_azure_multi(
     if zone is not None:
         server_vmopts["zones"] = [zone]
     _apply_azure_spot(server_vmopts, spot)
+    if server_cvm:
+        _apply_azure_confidential_security(server_vmopts)
     server_vm = VirtualMachine(server_name, opts=pulumi.ResourceOptions(depends_on=[client_vm]), **server_vmopts)
 
     db_private_ip = server_nic.ip_configurations.apply(
