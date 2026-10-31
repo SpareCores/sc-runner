@@ -20,7 +20,7 @@ from pulumi_azure_native.compute import (
     StorageProfileArgs,
     VirtualMachine,
 )
-from pulumi_azure_native.dbforpostgresql import Server
+from pulumi_azure_native.dbforpostgresql import Server, SkuTier
 from pulumi_azure_native.dbforpostgresql._inputs import NetworkArgs, SkuArgs, StorageArgs
 from pulumi_azure_native.network import (
     DelegationArgs,
@@ -46,6 +46,49 @@ PG_PRIVATE_DNS_ZONE = "privatelink.postgres.database.azure.com"
 PG_DNS_LOCATION = "global"
 PG_SUBNET_PREFIX = "10.0.2.0/24"
 NETWORK_MODE = "private_vnet"
+
+# azure-native SkuArgs: name = compute size (Standard_D4ads_v5); tier = SkuTier.
+# Classic azure FlexibleServer used a combined name (GP_Standard_D4ads_v5); sc-data
+# still stores that in api_reference_object.sku_name. ARM rejects any other Tier.
+_AZURE_PG_SKU_PREFIX_TO_TIER = {
+    "B": SkuTier.BURSTABLE,
+    "GP": SkuTier.GENERAL_PURPOSE,
+    "MO": SkuTier.MEMORY_OPTIMIZED,
+}
+_AZURE_PG_SKU_TIERS = {t.value: t for t in _AZURE_PG_SKU_PREFIX_TO_TIER.values()}
+
+
+def _azure_pg_sku_args(sku_name: str, sku_tier: str) -> SkuArgs:
+    """Build azure-native Flexible Server SkuArgs (name + SkuTier).
+
+    Accepts either a bare compute size or the classic ``GP_/MO_/B_`` prefixed form.
+    ``sku_tier`` must resolve to Burstable | GeneralPurpose | MemoryOptimized
+    (never a series like ``Dadsv5`` from sc-data ``database.family``).
+    """
+    name = (sku_name or "").strip()
+    tier_raw = (sku_tier or "").strip()
+    tier = _AZURE_PG_SKU_TIERS.get(tier_raw)
+
+    for prefix, mapped in _AZURE_PG_SKU_PREFIX_TO_TIER.items():
+        pfx = f"{prefix}_"
+        if name.startswith(pfx):
+            rest = name[len(pfx) :]
+            if rest.startswith("Standard_") or rest.startswith("Basic_"):
+                name = rest
+                if tier is None:
+                    tier = mapped
+            break
+
+    if tier is None:
+        bare = name.removeprefix("Standard_").removeprefix("Basic_")
+        if bare.startswith("B"):
+            tier = SkuTier.BURSTABLE
+        elif bare.startswith(("E", "M")):
+            tier = SkuTier.MEMORY_OPTIMIZED
+        else:
+            tier = SkuTier.GENERAL_PURPOSE
+
+    return SkuArgs(name=name, tier=tier)
 
 # Base provisioned IOPS and throughput (MB/s) per Premium SSD performance tier.
 _PREMIUM_DISK_PERF: dict[str, tuple[int, int]] = {
@@ -232,7 +275,7 @@ def resources_azure_dbaas(
         location=resource_group.location,
         server_name=server_name,
         version=md.engine_version,
-        sku=SkuArgs(name=md.sku_name, tier=md.sku_tier),
+        sku=_azure_pg_sku_args(md.sku_name, md.sku_tier),
         storage=_pg_storage_args(md),
         administrator_login=md.admin_login,
         administrator_login_password=admin_password,

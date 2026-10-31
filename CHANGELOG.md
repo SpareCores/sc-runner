@@ -1,3 +1,8 @@
+# v0.0.89 (2026-10-31)
+- Azure DBaaS: normalize Flexible Server `SkuArgs` to azure-native `name` + `SkuTier`
+  (`Burstable` / `GeneralPurpose` / `MemoryOptimized`). Accept classic `GP_/MO_/B_`
+  combined names from sc-data and never pass series (`Dadsv5`) as `Sku.Tier`.
+
 # v0.0.88 (2026-10-30)
 
 - Azure: set `securityProfile.securityType=ConfidentialVM` (vTPM + Secure Boot)
