@@ -1,3 +1,13 @@
+# v0.0.90 (2026-11-03)
+
+- After destroy, if pending operations remain but no confirmed custom resources
+  do, clear the pending ops from state and remove the stack (loud warning with
+  the pending details). An interrupted CREATE leaves nothing for destroy to act
+  on; refusing `remove_stack` forever made every cleanup pass fail on empty
+  stacks such as an Azure DBaaS ResourceGroup create that was killed mid-call.
+  Still raise `PendingOperationsError` when confirmed resources remain alongside
+  pending ops.
+
 # v0.0.89 (2026-10-31)
 - Azure DBaaS: normalize Flexible Server `SkuArgs` to azure-native `name` + `SkuTier`
   (`Burstable` / `GeneralPurpose` / `MemoryOptimized`). Accept classic `GP_/MO_/B_`

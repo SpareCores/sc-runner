@@ -200,6 +200,22 @@ def _pending_operations(stack) -> list:
     return deployment.get("pending_operations") or deployment.get("pendingOperations") or []
 
 
+def _clear_pending_operations(stack, stack_opts) -> list:
+    """Drop pending_operations from state. Returns the cleared list (empty if none)."""
+    on_output = stack_opts.get("on_output", print)
+    exported = stack.export_stack()
+    deployment = copy.deepcopy(exported.deployment or {})
+    pending = deployment.pop("pending_operations", None) or deployment.pop("pendingOperations", None) or []
+    if not pending:
+        return []
+    on_output(
+        f"Clearing {len(pending)} pending operation(s) from empty stack {stack.name}; "
+        f"confirm no orphaned cloud resources remain: {pending}"
+    )
+    stack.import_stack(Deployment(version=exported.version, deployment=deployment))
+    return pending
+
+
 def _destroy_stack(stack, stack_opts) -> bool:
     """Destroy stack resources. Returns True if stack removal should use --force."""
     on_output = stack_opts.get("on_output", print)
@@ -243,11 +259,19 @@ def destroy_stack(vendor, pulumi_opts, resource_opts, stack_opts=dict(on_output=
     force_remove = _destroy_stack(stack, stack_opts)
     pending = _pending_operations(stack)
     if pending:
-        raise PendingOperationsError(
-            f"Refusing to remove stack {stack.name}: {len(pending)} pending operation(s) "
-            f"remain after destroy - a resource may have been left orphaned outside Pulumi's "
-            f"tracking: {pending}"
-        )
+        # pulumi destroy cannot act on an interrupted CREATE (nothing confirmed in
+        # state). If every confirmed custom resource is already gone, the pending
+        # record is the only thing keeping an empty stack around forever and making
+        # every cleanup run fail. Clear it loudly and remove; still refuse when
+        # confirmed resources remain alongside pending ops.
+        if _custom_resource_urns(stack):
+            raise PendingOperationsError(
+                f"Refusing to remove stack {stack.name}: {len(pending)} pending operation(s) "
+                f"remain after destroy alongside confirmed resources - a resource may have "
+                f"been left orphaned outside Pulumi's tracking: {pending}"
+            )
+        _clear_pending_operations(stack, stack_opts)
+        force_remove = True
     stack.workspace.remove_stack(stack.name, force=force_remove)
 
 
